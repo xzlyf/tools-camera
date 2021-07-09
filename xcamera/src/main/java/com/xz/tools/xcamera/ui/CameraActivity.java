@@ -5,6 +5,7 @@ import android.content.Context;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.OrientationEventListener;
 import android.view.ScaleGestureDetector;
@@ -20,9 +21,13 @@ import androidx.camera.core.CameraControl;
 import androidx.camera.core.CameraInfo;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.FocusMeteringAction;
+import androidx.camera.core.FocusMeteringResult;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
+import androidx.camera.core.MeteringPoint;
+import androidx.camera.core.MeteringPointFactory;
 import androidx.camera.core.Preview;
+import androidx.camera.core.SurfaceOrientedMeteringPointFactory;
 import androidx.camera.core.ZoomState;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
@@ -53,6 +58,8 @@ public class CameraActivity extends AppCompatActivity {
 
 	private Button cameraCaptureButton;
 	private PreviewView viewFinder;
+
+	private boolean isLockFocus = false;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -132,14 +139,64 @@ public class CameraActivity extends AppCompatActivity {
 
 			}
 		});
+		//普通点击双击事件
+		GestureDetector gestureDetector = new GestureDetector(mContext, new GestureDetector.SimpleOnGestureListener() {
+			//单击对焦
+			@Override
+			public boolean onSingleTapConfirmed(MotionEvent e) {
+				if (!isLockFocus) {
+					// TODO: 2021/7/9 现在问题是什么手机都对焦不了 None of the specified AF/AE/AWB
+					MeteringPointFactory factory = new SurfaceOrientedMeteringPointFactory(200, 200);
+					MeteringPoint point = factory.createPoint(e.getX(), e.getY());
+					FocusMeteringAction action = new FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
+							.addPoint(point, FocusMeteringAction.FLAG_AE) // could have many
+							// auto calling cancelFocusAndMetering in 5 seconds
+							.setAutoCancelDuration(5, TimeUnit.SECONDS)
+							.build();
+
+					ListenableFuture future = mCameraControl.startFocusAndMetering(action);
+					future.addListener(new Runnable() {
+						@Override
+						public void run() {
+							try {
+								FocusMeteringResult result = (FocusMeteringResult) future.get();
+								Log.d(TAG, "对焦: " + result.isFocusSuccessful());
+							} catch (ExecutionException | InterruptedException ex) {
+								ex.printStackTrace();
+								Toast.makeText(mContext, "设备不支持对焦", Toast.LENGTH_SHORT).show();
+								isLockFocus = true;
+							}
+						}
+					}, ContextCompat.getMainExecutor(mContext));
+				}
+				return false;
+			}
+
+			//双击事件
+			@Override
+			public boolean onDoubleTap(MotionEvent e) {
+				Log.i(TAG, "----------onDoubleTap-----");
+				return false;
+			}
+
+			//长按时间
+			@Override
+			public void onLongPress(MotionEvent e) {
+				Log.i(TAG, "----------onDoubleTap-----");
+			}
+		});
 		//缩放手势识别
 		viewFinder.setOnTouchListener(new View.OnTouchListener() {
 			@Override
 			public boolean onTouch(View view, MotionEvent motionEvent) {
 				scaleListener.onTouchEvent(motionEvent);
+				gestureDetector.onTouchEvent(motionEvent);
+
 				return true;
 			}
 		});
+
+
 	}
 
 
@@ -265,5 +322,6 @@ public class CameraActivity extends AppCompatActivity {
 
 		mCameraControl = camera.getCameraControl();
 	}
+
 
 }
