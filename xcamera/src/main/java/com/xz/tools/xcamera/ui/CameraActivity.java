@@ -2,20 +2,28 @@ package com.xz.tools.xcamera.ui;
 
 import android.Manifest;
 import android.content.Context;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
+import android.view.MotionEvent;
+import android.view.OrientationEventListener;
+import android.view.ScaleGestureDetector;
+import android.view.Surface;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraControl;
+import androidx.camera.core.CameraInfo;
 import androidx.camera.core.CameraSelector;
+import androidx.camera.core.FocusMeteringAction;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.Preview;
+import androidx.camera.core.ZoomState;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.content.ContextCompat;
@@ -26,6 +34,7 @@ import com.xz.tools.xcamera.utils.PermissionsUtils;
 
 import java.io.File;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 public class CameraActivity extends AppCompatActivity {
 	private static final String TAG = CameraActivity.class.getName();
@@ -33,6 +42,15 @@ public class CameraActivity extends AppCompatActivity {
 	private String DEFAULT_SAVE_PATH = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "xCamera";
 	private ImageCapture mImageCapture;
 	private Context mContext;
+	//最小缩放倍率
+	private float zoomMin = 0;
+	//最大放大倍率
+	private float zoomMax = 0;
+	//单钱缩放倍率
+	private float zoomCurrent = 0;
+	private CameraControl mCameraControl;
+
+
 	private Button cameraCaptureButton;
 	private PreviewView viewFinder;
 
@@ -78,10 +96,58 @@ public class CameraActivity extends AppCompatActivity {
 				takePhoto();
 			}
 		});
+
+		//缩放手势监听
+		ScaleGestureDetector scaleListener = new ScaleGestureDetector(mContext, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+			@Override
+			public boolean onScale(ScaleGestureDetector detector) {
+
+				if (mCameraControl == null) {
+					return false;
+				}
+
+				if (detector.getScaleFactor() >= 1) {
+					//if (zoomCurrent < zoomMax) {
+					zoomCurrent += 0.05f;
+					//}
+				} else {
+					if (zoomCurrent > zoomMin) {
+						zoomCurrent -= 0.05f;
+					}
+				}
+
+				Log.d(TAG, "onScale: " + zoomCurrent);
+				mCameraControl.setZoomRatio(zoomCurrent);
+
+				return true;
+			}
+
+			@Override
+			public boolean onScaleBegin(ScaleGestureDetector detector) {
+				return true;
+			}
+
+			@Override
+			public void onScaleEnd(ScaleGestureDetector detector) {
+
+			}
+		});
+		//缩放手势识别
+		viewFinder.setOnTouchListener(new View.OnTouchListener() {
+			@Override
+			public boolean onTouch(View view, MotionEvent motionEvent) {
+				scaleListener.onTouchEvent(motionEvent);
+				return true;
+			}
+		});
 	}
 
 
+	/**
+	 * 打开相机
+	 */
 	private void startCamera() {
+
 		ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(this);
 
 		future.addListener(new Runnable() {
@@ -93,14 +159,39 @@ public class CameraActivity extends AppCompatActivity {
 				//		//设置当前屏幕的旋转
 				//		.setTargetRotation(rotation)
 				//		.build();
+
+				//用于预览
 				Preview preview = new Preview.Builder()
 						.build();
 				preview.setSurfaceProvider(viewFinder.getSurfaceProvider());
 				//用后置摄像头作为默认摄像头
 				CameraSelector defaultCamera = CameraSelector.DEFAULT_BACK_CAMERA;
 
+				//ImageCapture 用于拍照，非必须声明，可以忽略
 				mImageCapture = new ImageCapture.Builder()
 						.build();
+
+				//监听手机旋转角度，让相机的旋转角度会设置为与默认的显示屏旋转角度保持一致，这样排的照片和画面一致，不会反转
+				OrientationEventListener orientationEventListener = new OrientationEventListener(mContext) {
+					@Override
+					public void onOrientationChanged(int orientation) {
+						int rotation;
+						// Monitors orientation values to determine the target rotation value
+						if (orientation >= 45 && orientation < 135) {
+							rotation = Surface.ROTATION_270;
+						} else if (orientation >= 135 && orientation < 225) {
+							rotation = Surface.ROTATION_180;
+						} else if (orientation >= 225 && orientation < 315) {
+							rotation = Surface.ROTATION_90;
+						} else {
+							rotation = Surface.ROTATION_0;
+						}
+
+						mImageCapture.setTargetRotation(rotation);
+					}
+				};
+				orientationEventListener.enable();
+
 
 				ProcessCameraProvider cameraProvider;
 				try {
@@ -109,15 +200,23 @@ public class CameraActivity extends AppCompatActivity {
 					//在重新绑定之前取消绑定用例
 					cameraProvider.unbindAll();
 					//将用例绑定到摄像头
-					cameraProvider.bindToLifecycle(CameraActivity.this, defaultCamera, preview, mImageCapture);
+					Camera camera = cameraProvider.bindToLifecycle(CameraActivity.this,
+							defaultCamera,
+							preview,
+							mImageCapture);
+					setCurrentCameraStates(camera);
 				} catch (ExecutionException | InterruptedException e) {
 					e.printStackTrace();
 				}
 			}
 		}, ContextCompat.getMainExecutor(mContext));
 
+
 	}
 
+	/**
+	 * 拍照
+	 */
 	private void takePhoto() {
 		if (mImageCapture == null)
 			return;
@@ -136,18 +235,35 @@ public class CameraActivity extends AppCompatActivity {
 		mImageCapture.takePicture(outputOptions, ContextCompat.getMainExecutor(mContext), new ImageCapture.OnImageSavedCallback() {
 			@Override
 			public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-				Uri savedUri = outputFileResults.getSavedUri();
-				Log.d(TAG, "onImageSaved: " + savedUri);
+				// TODO: 2021/7/9 android 29 无法访问外置存储目录
+				Log.d(TAG, "onImageSaved: " + photoFile.getAbsolutePath());
 			}
 
 			@Override
 			public void onError(@NonNull ImageCaptureException exception) {
 				Log.d(TAG, "onError: " + exception.getMessage());
+				exception.printStackTrace();
 			}
 		});
 
 
 	}
 
+
+	private void setCurrentCameraStates(Camera camera) {
+		CameraInfo cameraInfo = camera.getCameraInfo();
+		ZoomState value = cameraInfo.getZoomState().getValue();
+		if (value != null) {
+			zoomMin = value.getMinZoomRatio();
+			zoomMax = value.getMaxZoomRatio();
+			zoomCurrent = value.getZoomRatio();
+		} else {
+			zoomMin = 1.0f;
+			zoomMax = 1.0f;
+			zoomCurrent = 1.0f;
+		}
+
+		mCameraControl = camera.getCameraControl();
+	}
 
 }

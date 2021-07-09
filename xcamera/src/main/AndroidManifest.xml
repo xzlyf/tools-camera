@@ -11,6 +11,7 @@
     <application>
         <activity
             android:name=".ui.CameraActivity"
+            android:screenOrientation="portrait"
             android:theme="@style/FullScreen" />
     </application>
 
