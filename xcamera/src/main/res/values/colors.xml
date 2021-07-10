@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#6200EE</color>
-    <color name="colorPrimaryDark">#3700B3</color>
-    <color name="colorAccent">#03DAC5</color>
+    <color name="mainColor">#6200EE</color>
+    <color name="mainColorDark">#3700B3</color>
+    <color name="mainAccent">#03DAC5</color>
+    <color name="xCameraBlack">#000000</color>
+    <color name="xCameraWhite">#FFFFFF</color>
+    <color name="xCameraWhite_2">#D6D6D6</color>
 </resources>
