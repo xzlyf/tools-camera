@@ -39,6 +39,7 @@ import com.xz.tools.xcamera.utils.PermissionsUtils;
 
 import java.io.File;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 public class CameraActivity extends AppCompatActivity {
@@ -54,9 +55,10 @@ public class CameraActivity extends AppCompatActivity {
 	//单钱缩放倍率
 	private float zoomCurrent = 0;
 	private CameraControl mCameraControl;
+	//当前摄像头
+	private int cameraCurrent = 0;
 
 
-	private Button cameraCaptureButton;
 	private PreviewView viewFinder;
 
 	private boolean isLockFocus = false;
@@ -74,7 +76,7 @@ public class CameraActivity extends AppCompatActivity {
 				new PermissionsUtils.IPermissionsResult() {
 					@Override
 					public void passPermissons() {
-						startCamera();
+						startCamera(cameraCurrent);
 					}
 
 					@Override
@@ -95,14 +97,26 @@ public class CameraActivity extends AppCompatActivity {
 	}
 
 	private void initView() {
-		cameraCaptureButton = findViewById(R.id.camera_capture_button);
-		viewFinder = findViewById(R.id.viewFinder);
+		Button cameraCaptureButton = findViewById(R.id.camera_capture_button);
 		cameraCaptureButton.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View view) {
 				takePhoto();
 			}
 		});
+		Button cameraSwitchButton = findViewById(R.id.camera_switch_button);
+		cameraSwitchButton.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				if (cameraCurrent == 0) {
+					cameraCurrent = 1;
+				} else {
+					cameraCurrent = 0;
+				}
+				startCamera(cameraCurrent);
+			}
+		});
+		viewFinder = findViewById(R.id.viewFinder);
 
 		//缩放手势监听
 		ScaleGestureDetector scaleListener = new ScaleGestureDetector(mContext, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -145,29 +159,7 @@ public class CameraActivity extends AppCompatActivity {
 			@Override
 			public boolean onSingleTapConfirmed(MotionEvent e) {
 				if (!isLockFocus) {
-					// TODO: 2021/7/9 现在问题是什么手机都对焦不了 None of the specified AF/AE/AWB
-					MeteringPointFactory factory = new SurfaceOrientedMeteringPointFactory(200, 200);
-					MeteringPoint point = factory.createPoint(e.getX(), e.getY());
-					FocusMeteringAction action = new FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
-							.addPoint(point, FocusMeteringAction.FLAG_AE) // could have many
-							// auto calling cancelFocusAndMetering in 5 seconds
-							.setAutoCancelDuration(5, TimeUnit.SECONDS)
-							.build();
-
-					ListenableFuture future = mCameraControl.startFocusAndMetering(action);
-					future.addListener(new Runnable() {
-						@Override
-						public void run() {
-							try {
-								FocusMeteringResult result = (FocusMeteringResult) future.get();
-								Log.d(TAG, "对焦: " + result.isFocusSuccessful());
-							} catch (ExecutionException | InterruptedException ex) {
-								ex.printStackTrace();
-								Toast.makeText(mContext, "设备不支持对焦", Toast.LENGTH_SHORT).show();
-								isLockFocus = true;
-							}
-						}
-					}, ContextCompat.getMainExecutor(mContext));
+					focusing(e.getX(), e.getY());
 				}
 				return false;
 			}
@@ -197,16 +189,43 @@ public class CameraActivity extends AppCompatActivity {
 		});
 
 
+		//监听手机旋转角度，让相机的旋转角度会设置为与默认的显示屏旋转角度保持一致，这样排的照片和画面一致，不会反转
+		OrientationEventListener orientationEventListener = new OrientationEventListener(mContext) {
+			@Override
+			public void onOrientationChanged(int orientation) {
+				int rotation;
+				// Monitors orientation values to determine the target rotation value
+				if (orientation >= 45 && orientation < 135) {
+					rotation = Surface.ROTATION_270;
+				} else if (orientation >= 135 && orientation < 225) {
+					rotation = Surface.ROTATION_180;
+				} else if (orientation >= 225 && orientation < 315) {
+					rotation = Surface.ROTATION_90;
+				} else {
+					rotation = Surface.ROTATION_0;
+				}
+
+				if (mImageCapture != null) {
+					mImageCapture.setTargetRotation(rotation);
+				}
+			}
+		};
+		orientationEventListener.enable();
+
+
 	}
 
+	private ListenableFuture<ProcessCameraProvider> future;
+	private ProcessCameraProvider cameraProvider;
+	private CameraSelector defaultCamera;
+	private Executor mainExecutor;
 
 	/**
 	 * 打开相机
 	 */
-	private void startCamera() {
-
-		ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(this);
-
+	private void startCamera(int camera) {
+		mainExecutor = ContextCompat.getMainExecutor(mContext);
+		future = ProcessCameraProvider.getInstance(this);
 		future.addListener(new Runnable() {
 			@Override
 			public void run() {
@@ -222,35 +241,16 @@ public class CameraActivity extends AppCompatActivity {
 						.build();
 				preview.setSurfaceProvider(viewFinder.getSurfaceProvider());
 				//用后置摄像头作为默认摄像头
-				CameraSelector defaultCamera = CameraSelector.DEFAULT_BACK_CAMERA;
-
+				if (camera == 0) {
+					defaultCamera = CameraSelector.DEFAULT_BACK_CAMERA;
+				} else {
+					defaultCamera = CameraSelector.DEFAULT_FRONT_CAMERA;
+				}
 				//ImageCapture 用于拍照，非必须声明，可以忽略
 				mImageCapture = new ImageCapture.Builder()
 						.build();
 
-				//监听手机旋转角度，让相机的旋转角度会设置为与默认的显示屏旋转角度保持一致，这样排的照片和画面一致，不会反转
-				OrientationEventListener orientationEventListener = new OrientationEventListener(mContext) {
-					@Override
-					public void onOrientationChanged(int orientation) {
-						int rotation;
-						// Monitors orientation values to determine the target rotation value
-						if (orientation >= 45 && orientation < 135) {
-							rotation = Surface.ROTATION_270;
-						} else if (orientation >= 135 && orientation < 225) {
-							rotation = Surface.ROTATION_180;
-						} else if (orientation >= 225 && orientation < 315) {
-							rotation = Surface.ROTATION_90;
-						} else {
-							rotation = Surface.ROTATION_0;
-						}
 
-						mImageCapture.setTargetRotation(rotation);
-					}
-				};
-				orientationEventListener.enable();
-
-
-				ProcessCameraProvider cameraProvider;
 				try {
 					cameraProvider = future.get();
 
@@ -266,7 +266,7 @@ public class CameraActivity extends AppCompatActivity {
 					e.printStackTrace();
 				}
 			}
-		}, ContextCompat.getMainExecutor(mContext));
+		}, mainExecutor);
 
 
 	}
@@ -289,7 +289,7 @@ public class CameraActivity extends AppCompatActivity {
 				.Builder(photoFile)
 				.build();
 
-		mImageCapture.takePicture(outputOptions, ContextCompat.getMainExecutor(mContext), new ImageCapture.OnImageSavedCallback() {
+		mImageCapture.takePicture(outputOptions, mainExecutor, new ImageCapture.OnImageSavedCallback() {
 			@Override
 			public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
 				// TODO: 2021/7/9 android 29 无法访问外置存储目录
@@ -303,6 +303,32 @@ public class CameraActivity extends AppCompatActivity {
 			}
 		});
 
+
+	}
+
+	/**
+	 * 对焦
+	 */
+	private void focusing(float x, float y) {
+		if (mCameraControl == null) {
+			return;
+		}
+		MeteringPointFactory factory = new SurfaceOrientedMeteringPointFactory(100, 100);
+		MeteringPoint point = factory.createPoint(x, y);
+		FocusMeteringAction action = new FocusMeteringAction.Builder(point)
+				// auto calling cancelFocusAndMetering in 5 seconds
+				.setAutoCancelDuration(5, TimeUnit.SECONDS)
+				.build();
+		ListenableFuture future = mCameraControl.startFocusAndMetering(action);
+		future.addListener(() -> {
+			try {
+				FocusMeteringResult result = (FocusMeteringResult) future.get();
+				Log.d(TAG, "focusing: " + result.isFocusSuccessful());
+				// process the result
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}, mainExecutor);
 
 	}
 

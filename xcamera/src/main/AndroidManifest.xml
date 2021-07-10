@@ -8,7 +8,7 @@
 
     <uses-feature android:name="android.hardware.camera.any" />
 
-    <application>
+    <application android:requestLegacyExternalStorage="true">
         <activity
             android:name=".ui.CameraActivity"
             android:screenOrientation="portrait"
