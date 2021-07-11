@@ -2,6 +2,7 @@ package com.xz.tools.xcamera.ui;
 
 import android.Manifest;
 import android.content.Context;
+import android.graphics.Point;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
@@ -27,7 +28,6 @@ import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.MeteringPoint;
 import androidx.camera.core.MeteringPointFactory;
 import androidx.camera.core.Preview;
-import androidx.camera.core.SurfaceOrientedMeteringPointFactory;
 import androidx.camera.core.ZoomState;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
@@ -36,6 +36,7 @@ import androidx.core.content.ContextCompat;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.xz.tools.xcamera.R;
 import com.xz.tools.xcamera.utils.PermissionsUtils;
+import com.xz.tools.xcamera.view.FocusImageView;
 
 import java.io.File;
 import java.util.concurrent.ExecutionException;
@@ -46,7 +47,6 @@ public class CameraActivity extends AppCompatActivity {
 	private static final String TAG = CameraActivity.class.getName();
 	//默认存储路径
 	private String DEFAULT_SAVE_PATH = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "xCamera";
-	private ImageCapture mImageCapture;
 	private Context mContext;
 	//最小缩放倍率
 	private float zoomMin = 0;
@@ -54,14 +54,16 @@ public class CameraActivity extends AppCompatActivity {
 	private float zoomMax = 0;
 	//单钱缩放倍率
 	private float zoomCurrent = 0;
+	private ImageCapture mImageCapture;
 	private CameraControl mCameraControl;
+	private CameraInfo mCameraInfo;
 	//当前摄像头
 	private int cameraCurrent = 0;
 
 
 	private PreviewView viewFinder;
+	private FocusImageView focusImageView;
 
-	private boolean isLockFocus = false;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -117,29 +119,13 @@ public class CameraActivity extends AppCompatActivity {
 			}
 		});
 		viewFinder = findViewById(R.id.viewFinder);
+		focusImageView = findViewById(R.id.focus_view);
 
 		//缩放手势监听
 		ScaleGestureDetector scaleListener = new ScaleGestureDetector(mContext, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
 			@Override
 			public boolean onScale(ScaleGestureDetector detector) {
-
-				if (mCameraControl == null) {
-					return false;
-				}
-
-				if (detector.getScaleFactor() >= 1) {
-					//if (zoomCurrent < zoomMax) {
-					zoomCurrent += 0.05f;
-					//}
-				} else {
-					if (zoomCurrent > zoomMin) {
-						zoomCurrent -= 0.05f;
-					}
-				}
-
-				Log.d(TAG, "onScale: " + zoomCurrent);
-				mCameraControl.setZoomRatio(zoomCurrent);
-
+				zoom(detector.getScaleFactor());
 				return true;
 			}
 
@@ -158,9 +144,7 @@ public class CameraActivity extends AppCompatActivity {
 			//单击对焦
 			@Override
 			public boolean onSingleTapConfirmed(MotionEvent e) {
-				if (!isLockFocus) {
-					focusing(e.getX(), e.getY());
-				}
+				focusing(e.getX(), e.getY());
 				return false;
 			}
 
@@ -307,35 +291,69 @@ public class CameraActivity extends AppCompatActivity {
 	}
 
 	/**
-	 * 对焦
+	 * 点击对焦
 	 */
 	private void focusing(float x, float y) {
 		if (mCameraControl == null) {
 			return;
 		}
-		MeteringPointFactory factory = new SurfaceOrientedMeteringPointFactory(100, 100);
-		MeteringPoint point = factory.createPoint(x, y);
-		FocusMeteringAction action = new FocusMeteringAction.Builder(point)
-				// auto calling cancelFocusAndMetering in 5 seconds
+		MeteringPointFactory factory1 = viewFinder.getMeteringPointFactory();
+		MeteringPoint point = factory1.createPoint(x, y);
+		FocusMeteringAction action = new FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
 				.setAutoCancelDuration(5, TimeUnit.SECONDS)
 				.build();
+
+		focusImageView.startFocus(new Point((int) x, (int) y));
 		ListenableFuture future = mCameraControl.startFocusAndMetering(action);
-		future.addListener(() -> {
-			try {
-				FocusMeteringResult result = (FocusMeteringResult) future.get();
-				Log.d(TAG, "focusing: " + result.isFocusSuccessful());
-				// process the result
-			} catch (Exception e) {
-				e.printStackTrace();
+		future.addListener(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					FocusMeteringResult result = (FocusMeteringResult) future.get();
+					if (result.isFocusSuccessful()) {
+						focusImageView.onFocusSuccess();
+					} else {
+						focusImageView.onFocusFailed();
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 			}
 		}, mainExecutor);
+
+
+	}
+
+	/**
+	 * 缩放
+	 *
+	 * @param scale 缩放因子 > 0放大 ，反之缩小
+	 */
+	private void zoom(float scale) {
+		if (mCameraControl == null || mCameraInfo == null) {
+			return;
+		}
+
+
+		ZoomState value = mCameraInfo.getZoomState().getValue();
+		if (value != null) {
+			zoomMin = value.getMinZoomRatio();
+			zoomMax = value.getMaxZoomRatio();
+			zoomCurrent = value.getZoomRatio();
+		} else {
+			zoomMin = 1.0f;
+			zoomMax = 1.0f;
+			zoomCurrent = 1.0f;
+		}
+
+		mCameraControl.setZoomRatio(zoomCurrent * scale);
 
 	}
 
 
 	private void setCurrentCameraStates(Camera camera) {
-		CameraInfo cameraInfo = camera.getCameraInfo();
-		ZoomState value = cameraInfo.getZoomState().getValue();
+		mCameraInfo = camera.getCameraInfo();
+		ZoomState value = mCameraInfo.getZoomState().getValue();
 		if (value != null) {
 			zoomMin = value.getMinZoomRatio();
 			zoomMax = value.getMaxZoomRatio();

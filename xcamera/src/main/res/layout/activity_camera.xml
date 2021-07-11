@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -11,12 +11,20 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <com.xz.tools.xcamera.view.FocusImageView
+        android:id="@+id/focus_view"
+        android:layout_width="75dp"
+        android:layout_height="75dp"
+        app:focus_fail_id="@drawable/focus_focus_failed"
+        app:focus_focusing_id="@drawable/focus_focusing"
+        app:focus_success_id="@drawable/focus_focused" />
+
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="180dp"
-        android:background="#26000000"
-        app:layout_constraintBottom_toBottomOf="parent">
+        android:layout_gravity="bottom"
+        android:background="#26000000">
 
         <Button
             android:id="@+id/camera_switch_button"
@@ -56,4 +64,4 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>
