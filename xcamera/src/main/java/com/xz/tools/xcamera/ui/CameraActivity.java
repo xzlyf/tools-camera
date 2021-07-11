@@ -2,6 +2,7 @@ package com.xz.tools.xcamera.ui;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Point;
 import android.os.Bundle;
 import android.os.Environment;
@@ -13,6 +14,7 @@ import android.view.ScaleGestureDetector;
 import android.view.Surface;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -78,7 +80,7 @@ public class CameraActivity extends AppCompatActivity {
 				new PermissionsUtils.IPermissionsResult() {
 					@Override
 					public void passPermissons() {
-						startCamera(cameraCurrent);
+						//startCamera(cameraCurrent);
 					}
 
 					@Override
@@ -94,7 +96,6 @@ public class CameraActivity extends AppCompatActivity {
 	@Override
 	public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
 		super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-		//就多一个参数this
 		PermissionsUtils.getInstance().onRequestPermissionsResult(this, requestCode, permissions, grantResults);
 	}
 
@@ -116,6 +117,14 @@ public class CameraActivity extends AppCompatActivity {
 					cameraCurrent = 0;
 				}
 				startCamera(cameraCurrent);
+			}
+		});
+
+		ImageView photoPreView = findViewById(R.id.photo_preview);
+		photoPreView.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				startActivity(new Intent(mContext, AlbumActivity.class));
 			}
 		});
 		viewFinder = findViewById(R.id.viewFinder);
@@ -161,7 +170,7 @@ public class CameraActivity extends AppCompatActivity {
 				Log.i(TAG, "----------onDoubleTap-----");
 			}
 		});
-		//缩放手势识别
+		//手势识别监听
 		viewFinder.setOnTouchListener(new View.OnTouchListener() {
 			@Override
 			public boolean onTouch(View view, MotionEvent motionEvent) {
@@ -233,8 +242,6 @@ public class CameraActivity extends AppCompatActivity {
 				//ImageCapture 用于拍照，非必须声明，可以忽略
 				mImageCapture = new ImageCapture.Builder()
 						.build();
-
-
 				try {
 					cameraProvider = future.get();
 

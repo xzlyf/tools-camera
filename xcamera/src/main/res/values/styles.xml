@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base application theme. -->
+
     <style name="FullScreen" parent="Theme.AppCompat.Light.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="colorPrimary">@color/mainColor</item>
@@ -8,6 +8,15 @@
         <item name="colorAccent">@color/mainAccent</item>
         <item name="android:windowTranslucentStatus">true</item>
         <item name="android:windowFullscreen">true</item>
+    </style>
+
+    <style name="AlbumTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/mainColor</item>
+        <item name="colorPrimaryDark">@color/mainColorDark</item>
+        <item name="colorAccent">@color/mainAccent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@color/xCameraTransparency</item>
     </style>
 
 </resources>

@@ -3,6 +3,7 @@
     <color name="mainColor">#6200EE</color>
     <color name="mainColorDark">#3700B3</color>
     <color name="mainAccent">#03DAC5</color>
+    <color name="xCameraTransparency">#00FFFFFF</color>
     <color name="xCameraBlack">#000000</color>
     <color name="xCameraWhite">#FFFFFF</color>
     <color name="xCameraWhite_2">#D6D6D6</color>
