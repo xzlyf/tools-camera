@@ -10,10 +10,12 @@ import android.net.Uri;
 public class Picture {
 	private Uri uri;
 	private String path;
+	private Long updateDate;
 
-	public Picture(Uri uri, String path) {
+	public Picture(Uri uri, String path, Long updateDate) {
 		this.uri = uri;
 		this.path = path;
+		this.updateDate = updateDate;
 	}
 
 	public Uri getUri() {
@@ -30,5 +32,13 @@ public class Picture {
 
 	public void setPath(String path) {
 		this.path = path;
+	}
+
+	public Long getUpdateDate() {
+		return updateDate;
+	}
+
+	public void setUpdateDate(Long updateDate) {
+		this.updateDate = updateDate;
 	}
 }

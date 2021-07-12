@@ -19,16 +19,16 @@ import java.util.List;
  * @date 2021/7/11
  */
 public class MediaStoreUtils {
-	public static final String TAG = MediaStoreUtils.class.getName();
+	private static final String TAG = MediaStoreUtils.class.getName();
 
 	/**
 	 * 查询文件是否在媒体库，如果在，返回Uri，如果不在则把文件插入到媒体库方便下次查询,同时返回uri
 	 * 兼容Android 10
 	 */
-	public static Uri getImgContentUri(Context context, File f) {
+	public static Uri getImgStoreUri(Context context, File f) {
 		Cursor cursor = null;
 		try {
-			//查询媒体库
+			//查询媒体库 ,根据修改日期（ImageColumns.DATE_MODIFIED）降序排列
 			cursor = context.getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
 					new String[]{MediaStore.Images.Media._ID}, MediaStore.Images.Media.DATA + "=? ",
 					new String[]{f.getAbsolutePath()}, null);

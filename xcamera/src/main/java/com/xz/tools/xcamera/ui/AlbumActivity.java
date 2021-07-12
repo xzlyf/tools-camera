@@ -15,6 +15,7 @@ import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.SimpleItemAnimator;
@@ -52,6 +53,7 @@ public class AlbumActivity extends AppCompatActivity {
 		if (albumPath == null) {
 			albumPath = DEFAULT_PATH;
 		}
+		initView();
 		readTask = new ReadPicTask();
 
 		String[] permissions = {Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE};
@@ -94,6 +96,23 @@ public class AlbumActivity extends AppCompatActivity {
 
 	}
 
+	private void initView() {
+		Toolbar toolbar = findViewById(R.id.toolbar);
+		//显示相册名
+		if (albumPath.equals(DEFAULT_PATH)) {
+			toolbar.setTitle("相册");
+		} else {
+			try {
+				File f = new File(albumPath);
+				toolbar.setTitle(f.getName());
+			} catch (Exception e) {
+				Log.e(TAG, "相册路径异常" + e.getMessage());
+				toolbar.setTitle("相册");
+			}
+		}
+	}
+
+
 	private class ReadPicTask extends AsyncTask<String, Picture, Integer> {
 		// 方法1：onPreExecute（）
 		// 作用：执行 线程任务前的操作
@@ -121,11 +140,15 @@ public class AlbumActivity extends AppCompatActivity {
 			if (picFile == null) {
 				return 0;
 			}
+			sort(picFile);
 			Uri uri;
 			for (File f : picFile) {
-				uri = MediaStoreUtils.getImgContentUri(mContext, f);
-				if (uri != null) {
-					publishProgress(new Picture(uri, f.getAbsolutePath()));
+				if (f.isFile()) {
+					Log.i(TAG, "doInBackground: " + f.lastModified());
+					uri = MediaStoreUtils.getImgStoreUri(mContext, f);
+					if (uri != null) {
+						publishProgress(new Picture(uri, f.getAbsolutePath(), f.lastModified()));
+					}
 				}
 			}
 
@@ -149,6 +172,46 @@ public class AlbumActivity extends AppCompatActivity {
 		@Override
 		protected void onCancelled() {
 
+		}
+
+		/**
+		 * 排序文件列表
+		 * 采用冒泡排序算法
+		 * 递增排序
+		 *
+		 * @param files
+		 * @return
+		 */
+		private void sort(File[] files) {
+			//冒泡
+			for (int i = 0; i < files.length; i++) {
+				//外层循环，遍历次数
+				for (int j = 0; j < files.length - i - 1; j++) {
+					//内层循环，升序（如果前一个值比后一个值大，则交换）
+					//内层循环一次，获取一个最大值
+					if (files[j].lastModified() > files[j + 1].lastModified()) {
+						File temp = files[j + 1];
+						files[j + 1] = files[j];
+						files[j] = temp;
+					}
+				}
+			}
+			//因为是递增排序，所以这边反转以下
+			reverseArray(files);
+
+		}
+
+		/**
+		 * 反转数组
+		 *
+		 * @param f
+		 */
+		private void reverseArray(File[] f) {
+			ArrayList<File> list = new ArrayList<>();
+			for (int i = 0; i < f.length; i++) {
+				list.add(f[f.length - i - 1]);
+			}
+			list.toArray(f);
 		}
 
 
