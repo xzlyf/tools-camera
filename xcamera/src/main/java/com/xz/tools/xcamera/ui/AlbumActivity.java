@@ -9,9 +9,11 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -30,6 +32,8 @@ import com.xz.tools.xcamera.utils.SpacesItemDecorationUtil;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class AlbumActivity extends AppCompatActivity {
 	public static final String TAG = AlbumActivity.class.getName();
@@ -40,6 +44,11 @@ public class AlbumActivity extends AppCompatActivity {
 	private ReadPicTask readTask;
 	private RecyclerView picRecyclerView;
 	private PictureAdapter picAdapter;
+	private MenuItem mSelectAllItem;
+	private int totalPic = 0;//照片总数（显示的）
+	private boolean mSelectMode = false;    //Item 选择模式
+	private Set<Integer> mSelectItemIndex = new TreeSet<>(); //已选的item的索引
+
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -96,6 +105,15 @@ public class AlbumActivity extends AppCompatActivity {
 
 	}
 
+	@Override
+	public void onBackPressed() {
+		if (mSelectMode) {
+			selectMode(false);
+		} else {
+			super.onBackPressed();
+		}
+	}
+
 	private void initView() {
 		Toolbar toolbar = findViewById(R.id.toolbar);
 		//显示相册名
@@ -110,6 +128,33 @@ public class AlbumActivity extends AppCompatActivity {
 				toolbar.setTitle("相册");
 			}
 		}
+
+		//Menu菜单控制
+		mSelectAllItem = toolbar.getMenu().findItem(R.id.select_all);
+		mSelectAllItem.setVisible(false);
+		mSelectAllItem.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+			@Override
+			public boolean onMenuItemClick(MenuItem item) {
+				try {
+					//如果当前选中的item数量不等于总照片数，那就使用全选状态
+					if (mSelectItemIndex.size() != totalPic) {
+						//全选照片
+						mSelectItemIndex.clear();
+						for (int i = 0; i < totalPic; i++) {
+							mSelectItemIndex.add(i);
+						}
+					} else {
+						//否者清除全选状态
+						mSelectItemIndex.clear();
+					}
+					picAdapter.notifyDataSetChanged();
+				} catch (Exception e) {
+					Toast.makeText(mContext, "全选异常", Toast.LENGTH_SHORT).show();
+				}
+				return true;
+			}
+		});
+
 	}
 
 
@@ -135,6 +180,7 @@ public class AlbumActivity extends AppCompatActivity {
 		// 作用：接收输入参数、执行任务中的耗时操作、返回 线程任务执行的结果
 		@Override
 		protected Integer doInBackground(String... strings) {
+			totalPic = 0;
 			File album = new File(strings[0]);
 			File[] picFile = album.listFiles();
 			if (picFile == null) {
@@ -144,9 +190,9 @@ public class AlbumActivity extends AppCompatActivity {
 			Uri uri;
 			for (File f : picFile) {
 				if (f.isFile()) {
-					Log.i(TAG, "doInBackground: " + f.lastModified());
 					uri = MediaStoreUtils.getImgStoreUri(mContext, f);
 					if (uri != null) {
+						totalPic += 1;
 						publishProgress(new Picture(uri, f.getAbsolutePath(), f.lastModified()));
 					}
 				}
@@ -217,6 +263,19 @@ public class AlbumActivity extends AppCompatActivity {
 
 	}
 
+	/**
+	 * 选择模式
+	 *
+	 * @param off 关闭或开启
+	 */
+	private void selectMode(boolean off) {
+		mSelectAllItem.setVisible(off);
+		mSelectMode = off;
+		mSelectItemIndex.clear();
+		picAdapter.notifyDataSetChanged();
+
+	}
+
 	private class PictureAdapter extends RecyclerView.Adapter<PictureViewHolder> {
 		private LayoutInflater inflater;
 		private List<Picture> mList;
@@ -251,7 +310,21 @@ public class AlbumActivity extends AppCompatActivity {
 					.crossFade()
 					.override(200, 200)
 					.into(holder.imageView);
+			if (mSelectMode) {
+				holder.itemView.setScaleX(0.95f);
+				holder.itemView.setScaleY(0.95f);
+				//如果选中集合中有当前的item，那就显示选中状态
+				if (mSelectItemIndex.contains(position)) {
+					holder.selectMod.setVisibility(View.VISIBLE);
+				} else {
+					holder.selectMod.setVisibility(View.GONE);
+				}
+			} else {
+				holder.itemView.setScaleX(1f);
+				holder.itemView.setScaleY(1f);
+				holder.selectMod.setVisibility(View.GONE);
 
+			}
 		}
 
 
@@ -263,10 +336,36 @@ public class AlbumActivity extends AppCompatActivity {
 
 	private class PictureViewHolder extends RecyclerView.ViewHolder {
 		ImageView imageView;
+		View selectMod;
 
 		PictureViewHolder(@NonNull View itemView) {
 			super(itemView);
+			selectMod = itemView.findViewById(R.id.select_mod);
 			imageView = itemView.findViewById(R.id.image);
+			itemView.setOnClickListener(new View.OnClickListener() {
+				@Override
+				public void onClick(View v) {
+					if (mSelectMode) {
+						int position = getLayoutPosition();
+						//多选模式
+						boolean isAdd = mSelectItemIndex.add(position);
+						if (!isAdd) {
+							//如果添加失败，那就把item改为取消选择状态
+							mSelectItemIndex.remove(position);
+						}
+						picAdapter.notifyItemChanged(position);
+
+					}
+
+				}
+			});
+			itemView.setOnLongClickListener(new View.OnLongClickListener() {
+				@Override
+				public boolean onLongClick(View v) {
+					selectMode(true);
+					return true;
+				}
+			});
 		}
 	}
 }
