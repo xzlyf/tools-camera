@@ -1,5 +1,10 @@
 package com.xz.tools.xcamera.bean;
 
+import android.os.Environment;
+
+import androidx.annotation.NonNull;
+
+import java.io.File;
 import java.io.Serializable;
 
 /**
@@ -32,6 +37,8 @@ public class AlbumConfig implements Serializable {
 	public static final int START_MULTIPLE = 2;
 
 
+	private String albumPath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + File.separator + "camera";
+	private String albumName = null;
 	private int startMode = START_ALBUM;
 	private int selectMax = 9;
 	private int selectMin = 1;
@@ -39,13 +46,33 @@ public class AlbumConfig implements Serializable {
 
 
 	/**
+	 * 设置相册路径
+	 * 默认打开: /storage/0/DICM/camera
+	 *
+	 * @param path 相册路径
+	 */
+	public void setAlbumPath(@NonNull String path) {
+		this.albumPath = path;
+	}
+
+	/**
 	 * 设置启动模式
 	 *
-	 * @param mode {@link #START_ALBUM}、{@link #START_SINGLE}
+	 * @param mode {@link #START_ALBUM}、{@link #START_SINGLE}或{@link #START_MULTIPLE}
 	 * @return
 	 */
 	public void setStartMode(int mode) {
 		this.startMode = mode;
+	}
+
+	/**
+	 * 设置相册名子
+	 * 默认 文件夹名
+	 *
+	 * @param name
+	 */
+	public void setAlbumName(String name) {
+		this.albumName = name;
 	}
 
 	/**
@@ -80,4 +107,27 @@ public class AlbumConfig implements Serializable {
 	}
 
 
+	public String getAlbumPath() {
+		return albumPath;
+	}
+
+	public int getStartMode() {
+		return startMode;
+	}
+
+	public String getAlbumName() {
+		return albumName;
+	}
+
+	public int getSelectMax() {
+		return selectMax;
+	}
+
+	public int getSelectMin() {
+		return selectMin;
+	}
+
+	public boolean isNavigationVisible() {
+		return navigationVisible;
+	}
 }

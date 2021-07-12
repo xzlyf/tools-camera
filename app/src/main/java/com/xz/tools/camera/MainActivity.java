@@ -6,6 +6,7 @@ import android.os.Environment;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.xz.tools.xcamera.bean.AlbumConfig;
 import com.xz.tools.xcamera.ui.AlbumActivity;
 
 public class MainActivity extends AppCompatActivity {
@@ -14,7 +15,13 @@ public class MainActivity extends AppCompatActivity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		//setContentView(R.layout.activity_main);
-		startActivity(new Intent(this, AlbumActivity.class).putExtra(AlbumActivity.EXTRA_PATH, Environment.getExternalStorageDirectory() + "/xCamera"));
+
+		AlbumConfig config = new AlbumConfig();
+		config.setAlbumPath(Environment.getExternalStorageDirectory() + "/xCamera");
+		config.setStartMode(AlbumConfig.START_ALBUM);
+		startActivity(
+				new Intent(this,
+						AlbumActivity.class).putExtra(AlbumActivity.EXTRA_CONFIG, config));
 		finish();
 
 

@@ -6,7 +6,6 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Environment;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -25,6 +24,7 @@ import androidx.recyclerview.widget.SimpleItemAnimator;
 
 import com.bumptech.glide.Glide;
 import com.xz.tools.xcamera.R;
+import com.xz.tools.xcamera.bean.AlbumConfig;
 import com.xz.tools.xcamera.bean.Picture;
 import com.xz.tools.xcamera.utils.MediaStoreUtils;
 import com.xz.tools.xcamera.utils.PermissionsUtils;
@@ -38,10 +38,9 @@ import java.util.TreeSet;
 
 public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuItemClickListener {
 	public static final String TAG = AlbumActivity.class.getName();
-	public static final String EXTRA_PATH = "ALBUM_PATH";
-	public static final String DEFAULT_PATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + File.separator + "camera";
+	public static final String EXTRA_CONFIG = "ALBUM_CONFIG";
+	private AlbumConfig config;
 	private Context mContext;
-	private String albumPath;//相册路径
 	private ReadPicTask readTask;
 	private RecyclerView picRecyclerView;
 	private PictureAdapter picAdapter;
@@ -59,10 +58,11 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 		setContentView(R.layout.activity_album);
 		Intent intent = getIntent();
 		if (intent != null) {
-			albumPath = intent.getStringExtra(EXTRA_PATH);
+			config = (AlbumConfig) intent.getSerializableExtra(EXTRA_CONFIG);
 		}
-		if (albumPath == null) {
-			albumPath = DEFAULT_PATH;
+		if (config == null) {
+			//如果没有收到传进来的配置，那就使用默认配置
+			config = new AlbumConfig();
 		}
 		initView();
 		readTask = new ReadPicTask();
@@ -71,7 +71,7 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 		PermissionsUtils.getInstance().chekPermissions(this, permissions, new PermissionsUtils.IPermissionsResult() {
 			@Override
 			public void passPermissons() {
-				readTask.execute(albumPath);
+				readTask.execute(config.getAlbumPath());
 			}
 
 			@Override
@@ -121,17 +121,18 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 	private void initView() {
 		Toolbar toolbar = findViewById(R.id.toolbar);
 		//显示相册名
-		if (albumPath.equals(DEFAULT_PATH)) {
-			toolbar.setTitle("相册");
-		} else {
+		if (config.getAlbumName() == null) {
 			try {
-				File f = new File(albumPath);
+				File f = new File(config.getAlbumPath());
 				toolbar.setTitle(f.getName());
 			} catch (Exception e) {
 				Log.e(TAG, "相册路径异常" + e.getMessage());
 				toolbar.setTitle("相册");
 			}
+		} else {
+			toolbar.setTitle(config.getAlbumName());
 		}
+
 		toolbar.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
@@ -184,7 +185,7 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 		@Override
 		protected void onPreExecute() {
 			picRecyclerView = findViewById(R.id.pic_recycler);
-			GridLayoutManager gridLayoutManager = new GridLayoutManager(mContext, 5);
+			GridLayoutManager gridLayoutManager = new GridLayoutManager(mContext, 3);
 			picRecyclerView.setLayoutManager(gridLayoutManager);
 			picRecyclerView.addItemDecoration(new SpacesItemDecorationUtil.SpacesItemDecorationVH(2));
 			SimpleItemAnimator itemAnimator = (SimpleItemAnimator) picRecyclerView.getItemAnimator();
@@ -382,7 +383,7 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 			itemView.setOnLongClickListener(new View.OnLongClickListener() {
 				@Override
 				public boolean onLongClick(View v) {
-					if (!mSelectMode){
+					if (!mSelectMode) {
 						selectMode(true);
 					}
 					return true;
