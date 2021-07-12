@@ -5,5 +5,10 @@
         android:id="@+id/select_all"
         android:icon="@drawable/ic_select_all"
         android:title="选择所有"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/select_done"
+        android:icon="@drawable/ic_submit"
+        android:title="提交"
         app:showAsAction="always" />
 </menu>

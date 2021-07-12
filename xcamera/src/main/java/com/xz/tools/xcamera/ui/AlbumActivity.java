@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
@@ -35,7 +36,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-public class AlbumActivity extends AppCompatActivity {
+public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuItemClickListener {
 	public static final String TAG = AlbumActivity.class.getName();
 	public static final String EXTRA_PATH = "ALBUM_PATH";
 	public static final String DEFAULT_PATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath() + File.separator + "camera";
@@ -45,6 +46,7 @@ public class AlbumActivity extends AppCompatActivity {
 	private RecyclerView picRecyclerView;
 	private PictureAdapter picAdapter;
 	private MenuItem mSelectAllItem;
+	private MenuItem mSelectDoneItem;
 	private int totalPic = 0;//照片总数（显示的）
 	private boolean mSelectMode = false;    //Item 选择模式
 	private Set<Integer> mSelectItemIndex = new TreeSet<>(); //已选的item的索引
@@ -81,9 +83,11 @@ public class AlbumActivity extends AppCompatActivity {
 
 		//todo 查询媒体库测试 ，待删
 		List<MediaStoreUtils.FileItem> allPhoto = MediaStoreUtils.getAllPhoto(mContext);
+		Log.i(TAG, "-------------媒体库------------: ");
 		for (MediaStoreUtils.FileItem item : allPhoto) {
-			Log.d(TAG, "-------------媒体库------------: " + item.getFilePath());
+			Log.i(TAG, item.getFilePath());
 		}
+		Log.i(TAG, "-------------媒体库------------: ");
 	}
 
 	@Override
@@ -128,33 +132,49 @@ public class AlbumActivity extends AppCompatActivity {
 				toolbar.setTitle("相册");
 			}
 		}
-
-		//Menu菜单控制
-		mSelectAllItem = toolbar.getMenu().findItem(R.id.select_all);
-		mSelectAllItem.setVisible(false);
-		mSelectAllItem.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+		toolbar.setOnClickListener(new View.OnClickListener() {
 			@Override
-			public boolean onMenuItemClick(MenuItem item) {
-				try {
-					//如果当前选中的item数量不等于总照片数，那就使用全选状态
-					if (mSelectItemIndex.size() != totalPic) {
-						//全选照片
-						mSelectItemIndex.clear();
-						for (int i = 0; i < totalPic; i++) {
-							mSelectItemIndex.add(i);
-						}
-					} else {
-						//否者清除全选状态
-						mSelectItemIndex.clear();
-					}
-					picAdapter.notifyDataSetChanged();
-				} catch (Exception e) {
-					Toast.makeText(mContext, "全选异常", Toast.LENGTH_SHORT).show();
-				}
-				return true;
+			public void onClick(View v) {
+				selectMode(false);
 			}
 		});
 
+		//Menu菜单控制
+		Menu menu = toolbar.getMenu();
+		mSelectAllItem = menu.findItem(R.id.select_all);
+		mSelectAllItem.setVisible(false);
+		mSelectAllItem.setOnMenuItemClickListener(this);
+
+		mSelectDoneItem = menu.findItem(R.id.select_done);
+		mSelectDoneItem.setVisible(false);
+		mSelectDoneItem.setOnMenuItemClickListener(this);
+
+	}
+
+	@Override
+	public boolean onMenuItemClick(MenuItem item) {
+		int itemId = item.getItemId();
+		if (itemId == R.id.select_all) {
+			try {
+				//如果当前选中的item数量不等于总照片数，那就使用全选状态
+				if (mSelectItemIndex.size() != totalPic) {
+					//全选照片
+					mSelectItemIndex.clear();
+					for (int i = 0; i < totalPic; i++) {
+						mSelectItemIndex.add(i);
+					}
+				} else {
+					//否者清除全选状态
+					mSelectItemIndex.clear();
+				}
+				picAdapter.notifyDataSetChanged();
+			} catch (Exception e) {
+				Toast.makeText(mContext, "全选异常", Toast.LENGTH_SHORT).show();
+			}
+		} else if (itemId == R.id.select_done) {
+			Toast.makeText(mContext, "提交", Toast.LENGTH_SHORT).show();
+		}
+		return true;
 	}
 
 
@@ -164,7 +184,7 @@ public class AlbumActivity extends AppCompatActivity {
 		@Override
 		protected void onPreExecute() {
 			picRecyclerView = findViewById(R.id.pic_recycler);
-			GridLayoutManager gridLayoutManager = new GridLayoutManager(mContext, 4);
+			GridLayoutManager gridLayoutManager = new GridLayoutManager(mContext, 5);
 			picRecyclerView.setLayoutManager(gridLayoutManager);
 			picRecyclerView.addItemDecoration(new SpacesItemDecorationUtil.SpacesItemDecorationVH(2));
 			SimpleItemAnimator itemAnimator = (SimpleItemAnimator) picRecyclerView.getItemAnimator();
@@ -315,14 +335,14 @@ public class AlbumActivity extends AppCompatActivity {
 				holder.itemView.setScaleY(0.95f);
 				//如果选中集合中有当前的item，那就显示选中状态
 				if (mSelectItemIndex.contains(position)) {
-					holder.selectMod.setVisibility(View.VISIBLE);
+					holder.selectView.setVisibility(View.VISIBLE);
 				} else {
-					holder.selectMod.setVisibility(View.GONE);
+					holder.selectView.setVisibility(View.GONE);
 				}
 			} else {
 				holder.itemView.setScaleX(1f);
 				holder.itemView.setScaleY(1f);
-				holder.selectMod.setVisibility(View.GONE);
+				holder.selectView.setVisibility(View.GONE);
 
 			}
 		}
@@ -336,11 +356,11 @@ public class AlbumActivity extends AppCompatActivity {
 
 	private class PictureViewHolder extends RecyclerView.ViewHolder {
 		ImageView imageView;
-		View selectMod;
+		View selectView;
 
 		PictureViewHolder(@NonNull View itemView) {
 			super(itemView);
-			selectMod = itemView.findViewById(R.id.select_mod);
+			selectView = itemView.findViewById(R.id.select_view);
 			imageView = itemView.findViewById(R.id.image);
 			itemView.setOnClickListener(new View.OnClickListener() {
 				@Override
@@ -362,7 +382,9 @@ public class AlbumActivity extends AppCompatActivity {
 			itemView.setOnLongClickListener(new View.OnLongClickListener() {
 				@Override
 				public boolean onLongClick(View v) {
-					selectMode(true);
+					if (!mSelectMode){
+						selectMode(true);
+					}
 					return true;
 				}
 			});

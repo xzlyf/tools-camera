@@ -11,7 +11,7 @@
         android:scaleType="centerCrop" />
 
     <View
-        android:id="@+id/select_mod"
+        android:id="@+id/select_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/background_selecting"
