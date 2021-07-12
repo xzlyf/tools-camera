@@ -3,7 +3,6 @@ package com.xz.tools.xcamera.ui;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -18,16 +17,15 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.SimpleItemAnimator;
 
 import com.bumptech.glide.Glide;
 import com.xz.tools.xcamera.R;
 import com.xz.tools.xcamera.bean.Picture;
-import com.xz.tools.xcamera.utils.ImageUtils;
 import com.xz.tools.xcamera.utils.MediaStoreUtils;
 import com.xz.tools.xcamera.utils.PermissionsUtils;
 import com.xz.tools.xcamera.utils.SpacesItemDecorationUtil;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -102,9 +100,14 @@ public class AlbumActivity extends AppCompatActivity {
 		@Override
 		protected void onPreExecute() {
 			picRecyclerView = findViewById(R.id.pic_recycler);
-			GridLayoutManager gridLayoutManager = new GridLayoutManager(mContext, 3);
+			GridLayoutManager gridLayoutManager = new GridLayoutManager(mContext, 4);
 			picRecyclerView.setLayoutManager(gridLayoutManager);
 			picRecyclerView.addItemDecoration(new SpacesItemDecorationUtil.SpacesItemDecorationVH(2));
+			SimpleItemAnimator itemAnimator = (SimpleItemAnimator) picRecyclerView.getItemAnimator();
+			if (itemAnimator != null) {
+				//解决Glide 加载闪烁
+				itemAnimator.setSupportsChangeAnimations(false);
+			}
 			picAdapter = new PictureAdapter();
 			picRecyclerView.setAdapter(picAdapter);
 		}
