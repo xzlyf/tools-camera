@@ -8,14 +8,27 @@ import android.net.Uri;
  * @date 2021/7/11
  */
 public class Picture {
+	private int id;//媒体库对应文件的id
 	private Uri uri;
 	private String path;
 	private Long updateDate;
 
-	public Picture(Uri uri, String path, Long updateDate) {
+	public Picture() {
+	}
+
+	public Picture(int id, Uri uri, String path, Long updateDate) {
+		this.id = id;
 		this.uri = uri;
 		this.path = path;
 		this.updateDate = updateDate;
+	}
+
+	public int getId() {
+		return id;
+	}
+
+	public void setId(int id) {
+		this.id = id;
 	}
 
 	public Uri getUri() {

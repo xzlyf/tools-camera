@@ -3,7 +3,6 @@ package com.xz.tools.xcamera.ui;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -367,12 +366,12 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 
 		@Override
 		protected Integer doInBackground(File... files) {
+			// TODO: 2021/7/12 执行删除文件，并刷新媒体库操作
 			for (File f : files) {
-				Log.i(TAG, "doInBackground: " + f.getAbsolutePath());
+				MediaStoreUtils.deleteImgStore(mContext, f);
 				SystemClock.sleep(1000);
 			}
 
-			// TODO: 2021/7/12 执行删除文件，并刷新媒体库操作
 			return null;
 		}
 
@@ -443,12 +442,12 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 				return 0;
 			}
 			sort(picFile);
-			Uri uri;
+			Picture picture;
 			for (File f : picFile) {
 				if (f.isFile()) {
-					uri = MediaStoreUtils.getImgStoreUri(mContext, f);
-					if (uri != null) {
-						publishProgress(new Picture(uri, f.getAbsolutePath(), f.lastModified()));
+					picture = MediaStoreUtils.queryImgStore(mContext, f);
+					if (picture != null) {
+						publishProgress(picture);
 					}
 				}
 			}

@@ -1,11 +1,14 @@
 package com.xz.tools.xcamera.utils;
 
+import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.MediaStore;
 import android.util.Log;
+
+import com.xz.tools.xcamera.bean.Picture;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -22,27 +25,45 @@ public class MediaStoreUtils {
 	private static final String TAG = MediaStoreUtils.class.getName();
 
 	/**
-	 * 查询文件是否在媒体库，如果在，返回Uri，如果不在则把文件插入到媒体库方便下次查询,同时返回uri
+	 * 查询文件是否在媒体库，如果在，返回{@link com.xz.tools.xcamera.bean.Picture}实体数据，如果不在则把文件插入到媒体库方便下次查询,同时返回实体数据
 	 * 兼容Android 10
 	 */
-	public static Uri getImgStoreUri(Context context, File f) {
+	public static Picture queryImgStore(Context context, File f) {
+		ContentResolver contentResolver = context.getContentResolver();
 		Cursor cursor = null;
 		try {
 			//查询媒体库 ,根据修改日期（ImageColumns.DATE_MODIFIED）降序排列
-			cursor = context.getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+			cursor = contentResolver.query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
 					new String[]{MediaStore.Images.Media._ID}, MediaStore.Images.Media.DATA + "=? ",
 					new String[]{f.getAbsolutePath()}, null);
-
+			Picture picture = new Picture();
+			picture.setPath(f.getAbsolutePath());
+			picture.setUpdateDate(f.lastModified());
 			if (cursor != null && cursor.moveToFirst()) {
 				int id = cursor.getInt(cursor.getColumnIndex(MediaStore.MediaColumns._ID));
 				Uri baseUri = Uri.parse("content://media/external/images/media");
-				return Uri.withAppendedPath(baseUri, "" + id);
+				picture.setId(id);
+				picture.setUri(Uri.withAppendedPath(baseUri, "" + id));
+				return picture;
 			} else {
 				// 如果图片不在手机的媒体库，就先把它插入。
 				if (f.exists()) {
 					ContentValues values = new ContentValues();
 					values.put(MediaStore.Images.Media.DATA, f.getAbsolutePath());
-					return context.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+					Uri uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+					picture.setUri(uri);
+					if (uri != null) {
+						String[] split = uri.toString().split("/");
+						try {
+							picture.setId(Integer.parseInt(split[split.length - 1]));
+						} catch (Exception e) {
+							Log.e(TAG, "Get Store Id Error");
+							picture.setId(-1);
+						}
+					} else {
+						picture.setId(-1);
+					}
+					return picture;
 				}
 			}
 		} catch (Exception e) {
@@ -54,6 +75,19 @@ public class MediaStoreUtils {
 		}
 
 		return null;
+	}
+
+	/**
+	 * 从媒体库里删除文件，如果媒体库不存在该文件，则直接按照路径删除文件
+	 *
+	 */
+	public static void deleteImgStore(Context context, File file) {
+		ContentResolver contentResolver = context.getContentResolver();
+		contentResolver.delete(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, MediaStore.Images.Media.DATA + "=?", new String[]{file.getAbsolutePath()});
+		//删除本地文件
+		if (file.exists()){
+			file.delete();
+		}
 	}
 
 
