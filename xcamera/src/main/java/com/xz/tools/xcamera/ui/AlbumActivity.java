@@ -16,6 +16,7 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.GridLayoutManager;
@@ -32,6 +33,8 @@ import com.xz.tools.xcamera.utils.SpacesItemDecorationUtil;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -41,13 +44,18 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 	public static final String EXTRA_CONFIG = "ALBUM_CONFIG";
 	private AlbumConfig config;
 	private Context mContext;
-	private ReadPicTask readTask;
+	/**
+	 * 本实例任务
+	 */
+	private Set<AsyncTask> taskList;
 	private RecyclerView picRecyclerView;
 	private PictureAdapter picAdapter;
 	private MenuItem mSelectAllItem;
 	private MenuItem mSelectDoneItem;
-	private int totalPic = 0;//照片总数（显示的）
+	private MenuItem mSelectDeleteItem;
+	private volatile int totalPic = 0;//照片总数（显示的）
 	private boolean mSelectMode = false;    //Item 选择模式
+	private File[] picFile;//图片文件地址
 	private Set<Integer> mSelectItemIndex = new TreeSet<>(); //已选的item的索引
 
 
@@ -65,7 +73,9 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 			config = new AlbumConfig();
 		}
 		initView();
-		readTask = new ReadPicTask();
+		ReadPicTask readTask = new ReadPicTask();
+		taskList = new HashSet<>();
+		taskList.add(readTask);//加入进任务组
 
 		String[] permissions = {Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE};
 		PermissionsUtils.getInstance().chekPermissions(this, permissions, new PermissionsUtils.IPermissionsResult() {
@@ -82,12 +92,12 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 
 
 		//todo 查询媒体库测试 ，待删
-		List<MediaStoreUtils.FileItem> allPhoto = MediaStoreUtils.getAllPhoto(mContext);
-		Log.i(TAG, "-------------媒体库------------: ");
-		for (MediaStoreUtils.FileItem item : allPhoto) {
-			Log.i(TAG, item.getFilePath());
-		}
-		Log.i(TAG, "-------------媒体库------------: ");
+		//List<MediaStoreUtils.FileItem> allPhoto = MediaStoreUtils.getAllPhoto(mContext);
+		//Log.i(TAG, "-------------媒体库------------: ");
+		//for (MediaStoreUtils.FileItem item : allPhoto) {
+		//	Log.i(TAG, item.getFilePath());
+		//}
+		//Log.i(TAG, "-------------媒体库------------: ");
 	}
 
 	@Override
@@ -98,12 +108,12 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 
 	@Override
 	protected void onDestroy() {
-		if (readTask != null) {
-			if (readTask.getStatus() == AsyncTask.Status.RUNNING ||
-					readTask.getStatus() == AsyncTask.Status.PENDING) {
-				readTask.cancel(true);
+		for (AsyncTask task : taskList) {
+			if (task.getStatus() == AsyncTask.Status.RUNNING ||
+					task.getStatus() == AsyncTask.Status.PENDING) {
+				task.cancel(true);
 			}
-			readTask = null;
+			taskList.remove(task);
 		}
 		super.onDestroy();
 
@@ -150,138 +160,69 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 		mSelectDoneItem.setVisible(false);
 		mSelectDoneItem.setOnMenuItemClickListener(this);
 
+		mSelectDeleteItem = menu.findItem(R.id.select_delete);
+		mSelectDeleteItem.setVisible(false);
+		mSelectDeleteItem.setOnMenuItemClickListener(this);
+
+
 	}
 
 	@Override
 	public boolean onMenuItemClick(MenuItem item) {
 		int itemId = item.getItemId();
 		if (itemId == R.id.select_all) {
-			try {
-				//如果当前选中的item数量不等于总照片数，那就使用全选状态
-				if (mSelectItemIndex.size() != totalPic) {
-					//全选照片
-					mSelectItemIndex.clear();
-					for (int i = 0; i < totalPic; i++) {
-						mSelectItemIndex.add(i);
-					}
-				} else {
-					//否者清除全选状态
-					mSelectItemIndex.clear();
-				}
-				picAdapter.notifyDataSetChanged();
-			} catch (Exception e) {
-				Toast.makeText(mContext, "全选异常", Toast.LENGTH_SHORT).show();
-			}
+			selectAll();
 		} else if (itemId == R.id.select_done) {
 			Toast.makeText(mContext, "提交", Toast.LENGTH_SHORT).show();
+		} else if (itemId == R.id.select_delete) {
+			selectDelete();
 		}
 		return true;
 	}
 
 
-	private class ReadPicTask extends AsyncTask<String, Picture, Integer> {
-		// 方法1：onPreExecute（）
-		// 作用：执行 线程任务前的操作
-		@Override
-		protected void onPreExecute() {
-			picRecyclerView = findViewById(R.id.pic_recycler);
-			GridLayoutManager gridLayoutManager = new GridLayoutManager(mContext, 3);
-			picRecyclerView.setLayoutManager(gridLayoutManager);
-			picRecyclerView.addItemDecoration(new SpacesItemDecorationUtil.SpacesItemDecorationVH(2));
-			SimpleItemAnimator itemAnimator = (SimpleItemAnimator) picRecyclerView.getItemAnimator();
-			if (itemAnimator != null) {
-				//解决Glide 加载闪烁
-				itemAnimator.setSupportsChangeAnimations(false);
-			}
-			picAdapter = new PictureAdapter();
-			picRecyclerView.setAdapter(picAdapter);
+	/**
+	 * 删除选中的
+	 */
+	private void selectDelete() {
+		if (mSelectItemIndex.size() == 0) {
+			Toast.makeText(mContext, "未选择任何图片", Toast.LENGTH_SHORT).show();
+			return;
 		}
 
-		// 方法2：doInBackground（）
-		// 作用：接收输入参数、执行任务中的耗时操作、返回 线程任务执行的结果
-		@Override
-		protected Integer doInBackground(String... strings) {
-			totalPic = 0;
-			File album = new File(strings[0]);
-			File[] picFile = album.listFiles();
-			if (picFile == null) {
-				return 0;
-			}
-			sort(picFile);
-			Uri uri;
-			for (File f : picFile) {
-				if (f.isFile()) {
-					uri = MediaStoreUtils.getImgStoreUri(mContext, f);
-					if (uri != null) {
-						totalPic += 1;
-						publishProgress(new Picture(uri, f.getAbsolutePath(), f.lastModified()));
-					}
+		/*得到待删除图片的文件对象*/
+		File[] delFile = new File[mSelectItemIndex.size()];
+		Iterator<Integer> iterator = mSelectItemIndex.iterator();
+		int position = 0;
+		while (iterator.hasNext()) {
+			delFile[position] = picFile[iterator.next()];
+			position++;
+		}
+		DeletePicTask delPicTask = new DeletePicTask();
+		delPicTask.execute(delFile);
+
+	}
+
+	/**
+	 * 选择所有
+	 */
+	private void selectAll() {
+		try {
+			//如果当前选中的item数量不等于总照片数，那就使用全选状态
+			if (mSelectItemIndex.size() != totalPic) {
+				//全选照片
+				mSelectItemIndex.clear();
+				for (int i = 0; i < totalPic; i++) {
+					mSelectItemIndex.add(i);
 				}
+			} else {
+				//否者清除全选状态
+				mSelectItemIndex.clear();
 			}
-
-			return null;
+			picAdapter.notifyDataSetChanged();
+		} catch (Exception e) {
+			Toast.makeText(mContext, "全选异常", Toast.LENGTH_SHORT).show();
 		}
-
-		// 方法3：onProgressUpdate（）
-		// 作用：在主线程
-		@Override
-		protected void onProgressUpdate(Picture... values) {
-			picAdapter.add(values[0]);
-		}
-
-		// 方法4：onPostExecute（）
-		// 作用：接收线程任务执行结果、将执行结果显示到UI组件
-		@Override
-		protected void onPostExecute(Integer integer) {
-		}
-
-		// 作用：将异步任务设置为：取消状态
-		@Override
-		protected void onCancelled() {
-
-		}
-
-		/**
-		 * 排序文件列表
-		 * 采用冒泡排序算法
-		 * 递增排序
-		 *
-		 * @param files
-		 * @return
-		 */
-		private void sort(File[] files) {
-			//冒泡
-			for (int i = 0; i < files.length; i++) {
-				//外层循环，遍历次数
-				for (int j = 0; j < files.length - i - 1; j++) {
-					//内层循环，升序（如果前一个值比后一个值大，则交换）
-					//内层循环一次，获取一个最大值
-					if (files[j].lastModified() > files[j + 1].lastModified()) {
-						File temp = files[j + 1];
-						files[j + 1] = files[j];
-						files[j] = temp;
-					}
-				}
-			}
-			//因为是递增排序，所以这边反转以下
-			reverseArray(files);
-
-		}
-
-		/**
-		 * 反转数组
-		 *
-		 * @param f
-		 */
-		private void reverseArray(File[] f) {
-			ArrayList<File> list = new ArrayList<>();
-			for (int i = 0; i < f.length; i++) {
-				list.add(f[f.length - i - 1]);
-			}
-			list.toArray(f);
-		}
-
-
 	}
 
 	/**
@@ -290,7 +231,22 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 	 * @param off 关闭或开启
 	 */
 	private void selectMode(boolean off) {
-		mSelectAllItem.setVisible(off);
+
+		switch (config.getStartMode()) {
+			case AlbumConfig.START_ALBUM:
+				//图库模式
+				mSelectAllItem.setVisible(off);
+				mSelectDeleteItem.setVisible(off);
+				break;
+			case AlbumConfig.START_SINGLE:
+				//单选模式
+				mSelectDoneItem.setVisible(off);
+				break;
+			case AlbumConfig.START_MULTIPLE:
+				//多选模式
+				mSelectDoneItem.setVisible(off);
+				break;
+		}
 		mSelectMode = off;
 		mSelectItemIndex.clear();
 		picAdapter.notifyDataSetChanged();
@@ -391,4 +347,161 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 			});
 		}
 	}
+
+
+	/**
+	 * 删除图片耗时任务
+	 */
+	private class DeletePicTask extends AsyncTask<File, Integer, Integer> {
+
+		@Override
+		protected void onPreExecute() {
+		}
+
+		@Override
+		protected Integer doInBackground(File... files) {
+			// TODO: 2021/7/12 执行删除文件，并刷新媒体库操作
+			return null;
+		}
+
+		@Override
+		protected void onProgressUpdate(Integer... values) {
+		}
+
+		@Override
+		protected void onPostExecute(Integer integer) {
+		}
+
+		@Override
+		protected void onCancelled() {
+		}
+	}
+
+
+	/**
+	 * 读取图片耗时任务
+	 */
+	private class ReadPicTask extends AsyncTask<String, Picture, Integer> {
+		// 方法1：onPreExecute（）
+		// 作用：执行 线程任务前的操作
+		@Override
+		protected void onPreExecute() {
+			totalPic = 0;
+			picRecyclerView = findViewById(R.id.pic_recycler);
+			GridLayoutManager gridLayoutManager = new GridLayoutManager(mContext, 3);
+			picRecyclerView.setLayoutManager(gridLayoutManager);
+			picRecyclerView.addItemDecoration(new SpacesItemDecorationUtil.SpacesItemDecorationVH(2));
+			SimpleItemAnimator itemAnimator = (SimpleItemAnimator) picRecyclerView.getItemAnimator();
+			if (itemAnimator != null) {
+				//解决Glide 加载闪烁
+				itemAnimator.setSupportsChangeAnimations(false);
+			}
+			picAdapter = new PictureAdapter();
+			picRecyclerView.setAdapter(picAdapter);
+		}
+
+		// 方法2：doInBackground（）
+		// 作用：接收输入参数、执行任务中的耗时操作、返回 线程任务执行的结果
+		@Override
+		protected Integer doInBackground(String... strings) {
+			File album = new File(strings[0]);
+			picFile = album.listFiles();
+			if (picFile == null) {
+				return 0;
+			}
+			sort(picFile);
+			Uri uri;
+			for (File f : picFile) {
+				if (f.isFile()) {
+					uri = MediaStoreUtils.getImgStoreUri(mContext, f);
+					if (uri != null) {
+						publishProgress(new Picture(uri, f.getAbsolutePath(), f.lastModified()));
+					}
+				}
+			}
+
+			return picFile.length;
+		}
+
+		// 方法3：onProgressUpdate（）
+		// 作用：在主线程
+		@Override
+		protected void onProgressUpdate(Picture... values) {
+			picAdapter.add(values[0]);
+		}
+
+		// 方法4：onPostExecute（）
+		// 作用：接收线程任务执行结果、将执行结果显示到UI组件
+		@Override
+		protected void onPostExecute(Integer integer) {
+			totalPic = integer;
+			taskList.remove(this);//执行完就移除任务列表
+		}
+
+		// 作用：将异步任务设置为：取消状态
+		@Override
+		protected void onCancelled() {
+			taskList.remove(this);//移除任务列表
+		}
+
+		/**
+		 * 排序文件列表
+		 * 采用冒泡排序算法
+		 * 递增排序
+		 *
+		 * @param files
+		 * @return
+		 */
+		private void sort(File[] files) {
+			//冒泡
+			for (int i = 0; i < files.length; i++) {
+				//外层循环，遍历次数
+				for (int j = 0; j < files.length - i - 1; j++) {
+					//内层循环，升序（如果前一个值比后一个值大，则交换）
+					//内层循环一次，获取一个最大值
+					if (files[j].lastModified() > files[j + 1].lastModified()) {
+						File temp = files[j + 1];
+						files[j + 1] = files[j];
+						files[j] = temp;
+					}
+				}
+			}
+			//因为是递增排序，所以这边反转以下
+			reverseArray(files);
+
+		}
+
+		/**
+		 * 反转数组
+		 *
+		 * @param f
+		 */
+		private void reverseArray(File[] f) {
+			ArrayList<File> list = new ArrayList<>();
+			for (int i = 0; i < f.length; i++) {
+				list.add(f[f.length - i - 1]);
+			}
+			list.toArray(f);
+		}
+
+		/*
+		 * 保证对象唯一性
+		 */
+		@Override
+		public int hashCode() {
+			return 'a';
+		}
+
+		/*
+		 * 保证对象唯一性
+		 */
+		@Override
+		public boolean equals(@Nullable Object obj) {
+			if (obj != null) {
+				return hashCode() == obj.hashCode();
+			}
+			return false;
+		}
+	}
+
 }
