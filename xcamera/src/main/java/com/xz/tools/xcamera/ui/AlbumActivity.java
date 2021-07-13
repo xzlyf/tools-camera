@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -108,12 +109,15 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 
 	@Override
 	protected void onDestroy() {
-		for (AsyncTask task : taskList) {
-			if (task.getStatus() == AsyncTask.Status.RUNNING ||
-					task.getStatus() == AsyncTask.Status.PENDING) {
-				task.cancel(true);
+		//移除和取消未执行的任务
+		if (taskList.size() > 0) {
+			for (AsyncTask task : taskList) {
+				if (task.getStatus() == AsyncTask.Status.RUNNING ||
+						task.getStatus() == AsyncTask.Status.PENDING) {
+					task.cancel(true);
+				}
+				taskList.remove(task);
 			}
-			taskList.remove(task);
 		}
 		super.onDestroy();
 
@@ -199,7 +203,10 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 			position++;
 		}
 		DeletePicTask delPicTask = new DeletePicTask();
-		delPicTask.execute(delFile);
+		//只能同时进行一个删除任务，如果添加成功就，开始任务
+		if (taskList.add(delPicTask)) {
+			delPicTask.execute(delFile);
+		}
 
 	}
 
@@ -360,6 +367,11 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 
 		@Override
 		protected Integer doInBackground(File... files) {
+			for (File f : files) {
+				Log.i(TAG, "doInBackground: " + f.getAbsolutePath());
+				SystemClock.sleep(1000);
+			}
+
 			// TODO: 2021/7/12 执行删除文件，并刷新媒体库操作
 			return null;
 		}
@@ -370,10 +382,31 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 
 		@Override
 		protected void onPostExecute(Integer integer) {
+			taskList.remove(this);
 		}
 
 		@Override
 		protected void onCancelled() {
+			taskList.remove(this);
+		}
+
+		/*
+		 * 保证对象唯一性
+		 */
+		@Override
+		public int hashCode() {
+			return 'b';
+		}
+
+		/*
+		 * 保证对象唯一性
+		 */
+		@Override
+		public boolean equals(@Nullable Object obj) {
+			if (obj != null) {
+				return hashCode() == obj.hashCode();
+			}
+			return false;
 		}
 	}
 
