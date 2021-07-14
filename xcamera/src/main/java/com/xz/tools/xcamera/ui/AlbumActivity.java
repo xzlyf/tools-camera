@@ -2,6 +2,7 @@ package com.xz.tools.xcamera.ui;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -17,6 +18,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.GridLayoutManager;
@@ -28,6 +30,7 @@ import com.xz.tools.xcamera.R;
 import com.xz.tools.xcamera.bean.AlbumConfig;
 import com.xz.tools.xcamera.bean.Picture;
 import com.xz.tools.xcamera.bean.SelectPic;
+import com.xz.tools.xcamera.ui.dialog.ProgressDialog;
 import com.xz.tools.xcamera.utils.MediaStoreUtils;
 import com.xz.tools.xcamera.utils.PermissionsUtils;
 import com.xz.tools.xcamera.utils.SpacesItemDecorationUtil;
@@ -61,6 +64,7 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 	private boolean mSelectMode = false;    //Item 选择模式
 	private Vector<File> picFiles;//图片文件地址
 	private Set<Integer> mSelectItemIndex = new TreeSet<>(); //已选的item的索引
+	private ProgressDialog mProgressDialog;
 
 
 	@Override
@@ -188,6 +192,27 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 	}
 
 
+	private void showProgressDialog() {
+		if (mProgressDialog == null) {
+			mProgressDialog = new ProgressDialog(mContext);
+			mProgressDialog.create();
+		}
+		mProgressDialog.show();
+	}
+
+	private void updateProgressValue(int total, int progress, int step) {
+		if (mProgressDialog != null && mProgressDialog.isShowing()) {
+			mProgressDialog.updateView(total, progress, step);
+		}
+	}
+
+	private void dismissProgressDialog() {
+		if (mProgressDialog != null && mProgressDialog.isShowing()) {
+			mProgressDialog.cancel();
+			mProgressDialog = null;
+		}
+	}
+
 	/**
 	 * 删除选中的
 	 */
@@ -196,12 +221,23 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 			Toast.makeText(mContext, "未选择任何图片", Toast.LENGTH_SHORT).show();
 			return;
 		}
-		DeletePicTask delPicTask = new DeletePicTask();
-		//只能同时进行一个删除任务，如果添加成功就，开始任务
-		if (taskList.add(delPicTask)) {
-			//安全可变参数
-			delPicTask.execute();
-		}
+		new AlertDialog.Builder(mContext)
+				.setMessage("是否删除" + mSelectItemIndex.size() + "张照片")
+				.setPositiveButton("删除", new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						DeletePicTask delPicTask = new DeletePicTask();
+						//只能同时进行一个删除任务，如果添加成功就，开始任务
+						if (taskList.add(delPicTask)) {
+							//安全可变参数
+							delPicTask.execute();
+						}
+						dialog.dismiss();
+					}
+				})
+				.setNegativeButton("取消", null)
+				.create()
+				.show();
 
 	}
 
@@ -363,6 +399,8 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 
 		@Override
 		protected void onPreExecute() {
+			//准备对话框
+			showProgressDialog();
 		}
 
 		@Override
@@ -374,16 +412,22 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 			}
 			boolean b;
 			SelectPic temp;
+			int total = mSelectItemIndex.size();//总数
+			int step = 0;//当前第几张
+			float progress = 0;//当前进度，已删除/总数
 			while (!delFileStack.empty()) {
 				temp = delFileStack.pop();
 				b = MediaStoreUtils.deleteImgStore(mContext, temp.getFile());
 				if (b) {
-					//UI进度显示
-					publishProgress(temp.getPosition());
 					//移出选中列表
 					mSelectItemIndex.remove(temp.getPosition());
 					//移出图片列表
 					picFiles.remove(temp.getFile());
+					//进度计算
+					step++;
+					progress = ((float) step / (float) total) * 100;
+					//UI进度更新显示
+					publishProgress(temp.getPosition(), total, (int) progress, step);
 				} else {
 					Log.e(TAG, "删除失败：" + temp.getFile().getAbsolutePath());
 				}
@@ -394,16 +438,21 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 			return null;
 		}
 
+		/**
+		 * @param values [0]item的索引 [1]总量 [2]progress [3]步数
+		 */
 		@Override
-		protected void onProgressUpdate(Integer... position) {
+		protected void onProgressUpdate(Integer... values) {
 			//刷新item
-			picAdapter.notifyAndRemove(position[0]);
+			picAdapter.notifyAndRemove(values[0]);
+			updateProgressValue(values[1], values[2], values[3]);
+
 		}
 
 		@Override
 		protected void onPostExecute(Integer integer) {
-
-
+			dismissProgressDialog();
+			selectMode(false);//取消选择模式
 			taskList.remove(this);
 		}
 
