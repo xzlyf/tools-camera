@@ -50,5 +50,7 @@ dependencies {
 
     //Glide
     implementation 'com.github.bumptech.glide:glide:3.7.0'
+    //图片缩放支持库
+    implementation 'com.github.chrisbanes:PhotoView:2.3.0'
 
 }

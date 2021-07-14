@@ -375,6 +375,10 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 						}
 						picAdapter.notifyItemChanged(position);
 
+					} else {
+						//查看大图
+						startActivity(new Intent(mContext, PhotoActivity.class)
+								.putExtra(PhotoActivity.EXTRA_DATA, picFiles.get(getLayoutPosition()).getAbsolutePath()));
 					}
 
 				}
