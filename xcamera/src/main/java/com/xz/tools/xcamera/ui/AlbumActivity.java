@@ -27,17 +27,21 @@ import com.bumptech.glide.Glide;
 import com.xz.tools.xcamera.R;
 import com.xz.tools.xcamera.bean.AlbumConfig;
 import com.xz.tools.xcamera.bean.Picture;
+import com.xz.tools.xcamera.bean.SelectPic;
 import com.xz.tools.xcamera.utils.MediaStoreUtils;
 import com.xz.tools.xcamera.utils.PermissionsUtils;
 import com.xz.tools.xcamera.utils.SpacesItemDecorationUtil;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.Stack;
 import java.util.TreeSet;
+import java.util.Vector;
 
 public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuItemClickListener {
 	public static final String TAG = AlbumActivity.class.getName();
@@ -55,7 +59,7 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 	private MenuItem mSelectDeleteItem;
 	private volatile int totalPic = 0;//照片总数（显示的）
 	private boolean mSelectMode = false;    //Item 选择模式
-	private File[] picFile;//图片文件地址
+	private Vector<File> picFiles;//图片文件地址
 	private Set<Integer> mSelectItemIndex = new TreeSet<>(); //已选的item的索引
 
 
@@ -192,19 +196,11 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 			Toast.makeText(mContext, "未选择任何图片", Toast.LENGTH_SHORT).show();
 			return;
 		}
-
-		/*得到待删除图片的文件对象*/
-		File[] delFile = new File[mSelectItemIndex.size()];
-		Iterator<Integer> iterator = mSelectItemIndex.iterator();
-		int position = 0;
-		while (iterator.hasNext()) {
-			delFile[position] = picFile[iterator.next()];
-			position++;
-		}
 		DeletePicTask delPicTask = new DeletePicTask();
 		//只能同时进行一个删除任务，如果添加成功就，开始任务
 		if (taskList.add(delPicTask)) {
-			delPicTask.execute(delFile);
+			//安全可变参数
+			delPicTask.execute();
 		}
 
 	}
@@ -269,7 +265,12 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 
 		public void add(Picture path) {
 			mList.add(path);
-			notifyDataSetChanged();
+			notifyItemChanged(mList.size());
+		}
+
+		public void notifyAndRemove(int position) {
+			mList.remove(position);
+			notifyItemRemoved(position);
 		}
 
 
@@ -358,29 +359,51 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 	/**
 	 * 删除图片耗时任务
 	 */
-	private class DeletePicTask extends AsyncTask<File, Integer, Integer> {
+	private class DeletePicTask extends AsyncTask<Void, Integer, Integer> {
 
 		@Override
 		protected void onPreExecute() {
 		}
 
 		@Override
-		protected Integer doInBackground(File... files) {
-			// TODO: 2021/7/12 执行删除文件，并刷新媒体库操作
-			for (File f : files) {
-				MediaStoreUtils.deleteImgStore(mContext, f);
-				SystemClock.sleep(1000);
+		protected final Integer doInBackground(Void... voids) {
+			/*得到待删除图片的文件对象，使用Stack是因为它后进先出，我们需要先删除后面的item才行，不然item刷新有问题*/
+			Stack<SelectPic> delFileStack = new Stack<>();
+			for (Integer index : mSelectItemIndex) {
+				delFileStack.push(new SelectPic(picFiles.get(index), index));
 			}
+			boolean b;
+			SelectPic temp;
+			while (!delFileStack.empty()) {
+				temp = delFileStack.pop();
+				b = MediaStoreUtils.deleteImgStore(mContext, temp.getFile());
+				if (b) {
+					//UI进度显示
+					publishProgress(temp.getPosition());
+					//移出选中列表
+					mSelectItemIndex.remove(temp.getPosition());
+					//移出图片列表
+					picFiles.remove(temp.getFile());
+				} else {
+					Log.e(TAG, "删除失败：" + temp.getFile().getAbsolutePath());
+				}
+				SystemClock.sleep(500);
+			}
+
 
 			return null;
 		}
 
 		@Override
-		protected void onProgressUpdate(Integer... values) {
+		protected void onProgressUpdate(Integer... position) {
+			//刷新item
+			picAdapter.notifyAndRemove(position[0]);
 		}
 
 		@Override
 		protected void onPostExecute(Integer integer) {
+
+
 			taskList.remove(this);
 		}
 
@@ -436,14 +459,19 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 		// 作用：接收输入参数、执行任务中的耗时操作、返回 线程任务执行的结果
 		@Override
 		protected Integer doInBackground(String... strings) {
-			File album = new File(strings[0]);
-			picFile = album.listFiles();
-			if (picFile == null) {
+			File[] album = new File(strings[0]).listFiles();
+			if (album == null) {
 				return 0;
 			}
-			sort(picFile);
+			/*
+				构造方法：new   vector(int   a,int   b)
+				（a是容量，b是一旦容量超过，以b为单位自动扩大容量。）
+			 */
+			picFiles = new Vector<>(album.length, 1);
+			picFiles.addAll(Arrays.asList(album));
+			sort(picFiles);
 			Picture picture;
-			for (File f : picFile) {
+			for (File f : picFiles) {
 				if (f.isFile()) {
 					picture = MediaStoreUtils.queryImgStore(mContext, f);
 					if (picture != null) {
@@ -452,7 +480,7 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 				}
 			}
 
-			return picFile.length;
+			return picFiles.size();
 		}
 
 		// 方法3：onProgressUpdate（）
@@ -477,43 +505,30 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
 		}
 
 		/**
-		 * 排序文件列表
+		 * 排序文件列表,按照最后修改时间排序
 		 * 采用冒泡排序算法
 		 * 递增排序
 		 *
 		 * @param files
 		 * @return
 		 */
-		private void sort(File[] files) {
+		private void sort(Vector<File> files) {
 			//冒泡
-			for (int i = 0; i < files.length; i++) {
+			for (int i = 0; i < files.size(); i++) {
 				//外层循环，遍历次数
-				for (int j = 0; j < files.length - i - 1; j++) {
+				for (int j = 0; j < files.size() - i - 1; j++) {
 					//内层循环，升序（如果前一个值比后一个值大，则交换）
 					//内层循环一次，获取一个最大值
-					if (files[j].lastModified() > files[j + 1].lastModified()) {
-						File temp = files[j + 1];
-						files[j + 1] = files[j];
-						files[j] = temp;
+					if (files.get(j).lastModified() > files.get(j + 1).lastModified()) {
+						File temp = files.get(j + 1);
+						files.set(j + 1, files.get(j));
+						files.set(j, temp);
 					}
 				}
 			}
 			//因为是递增排序，所以这边反转以下
-			reverseArray(files);
+			Collections.reverse(files);
 
-		}
-
-		/**
-		 * 反转数组
-		 *
-		 * @param f
-		 */
-		private void reverseArray(File[] f) {
-			ArrayList<File> list = new ArrayList<>();
-			for (int i = 0; i < f.length; i++) {
-				list.add(f[f.length - i - 1]);
-			}
-			list.toArray(f);
 		}
 
 		/*

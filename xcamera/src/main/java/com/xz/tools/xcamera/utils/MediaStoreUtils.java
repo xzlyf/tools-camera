@@ -79,15 +79,15 @@ public class MediaStoreUtils {
 
 	/**
 	 * 从媒体库里删除文件，如果媒体库不存在该文件，则直接按照路径删除文件
-	 *
 	 */
-	public static void deleteImgStore(Context context, File file) {
+	public static boolean deleteImgStore(Context context, File file) {
 		ContentResolver contentResolver = context.getContentResolver();
 		contentResolver.delete(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, MediaStore.Images.Media.DATA + "=?", new String[]{file.getAbsolutePath()});
 		//删除本地文件
-		if (file.exists()){
-			file.delete();
+		if (file.exists()) {
+			return file.delete();
 		}
+		return true;
 	}
 
 
