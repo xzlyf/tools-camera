@@ -6,12 +6,13 @@
     android:layout_height="match_parent"
     tools:context=".ui.PhotoActivity">
 
-    <ImageView
+    <com.xz.tools.xcamera.view.ZoomImageView
         android:id="@+id/pic_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:tint="@color/xCameraWhite"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
