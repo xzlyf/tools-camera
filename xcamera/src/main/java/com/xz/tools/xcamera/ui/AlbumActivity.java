@@ -49,7 +49,8 @@ import java.util.Vector;
 
 public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuItemClickListener {
     public static final String TAG = AlbumActivity.class.getName();
-    public static final String EXTRA_CONFIG = "ALBUM_CONFIG";
+    public static final String EXTRA_CONFIG = "ALBUM_CONFIG";//接收配置参数
+    public static final String EXTRA_DATA = "data";//图片路径返回
     private AlbumConfig config;
     private Context mContext;
     /**
@@ -126,6 +127,9 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
                 }
                 taskList.remove(task);
             }
+        }
+        if (config.getStartMode() != AlbumConfig.START_ALBUM) {
+            setResult(RESULT_CANCELED);
         }
         super.onDestroy();
 
@@ -367,6 +371,7 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
             itemView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
+                    //短按&点击
                     if (mSelectMode) {
                         int position = getLayoutPosition();
                         //多选模式
@@ -377,6 +382,12 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
                         }
                         picAdapter.notifyItemChanged(position);
 
+                    } else if (config.getStartMode() == AlbumConfig.START_SINGLE) {
+                        //单选模式
+                        Intent intent = new Intent();
+                        intent.putExtra(EXTRA_DATA, picFiles.get(getLayoutPosition()).getAbsolutePath());
+                        setResult(RESULT_OK, intent);
+                        finish();
                     } else {
                         //查看大图
                         startActivity(new Intent(mContext, PhotoActivity.class)
@@ -388,7 +399,8 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
             itemView.setOnLongClickListener(new View.OnLongClickListener() {
                 @Override
                 public boolean onLongClick(View v) {
-                    if (!mSelectMode) {
+                    //长按
+                    if (!mSelectMode && config.getStartMode() != AlbumConfig.START_SINGLE) {
                         selectMode(true);
                     }
                     return true;
