@@ -332,7 +332,7 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
             //holder.imageView.setImageBitmap(bitmap);
             //使用Glide来处理，生成缩略图
             Glide.with(mContext)
-                    .load(picture.getPath())
+                    .load(picture.getUri())//使用uri比直接使用路径要好点，新版api太复杂了绕来绕去
                     .diskCacheStrategy(DiskCacheStrategy.NONE)
                     .crossFade()
                     .override(200, 200)

@@ -4,8 +4,10 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Point;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -35,6 +37,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.content.ContextCompat;
 
+import com.bumptech.glide.Glide;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.xz.tools.xcamera.R;
 import com.xz.tools.xcamera.bean.AlbumConfig;
@@ -60,8 +63,11 @@ public class CameraActivity extends AppCompatActivity {
     private ImageCapture mImageCapture;
     private CameraControl mCameraControl;
     private CameraInfo mCameraInfo;
+    private ImageView photoPreView;
     //当前摄像头
     private int cameraCurrent = 0;
+    //子线程任务
+    private ReadLastPicTask readLastPicTask;
 
 
     private PreviewView viewFinder;
@@ -100,6 +106,15 @@ public class CameraActivity extends AppCompatActivity {
         PermissionsUtils.getInstance().onRequestPermissionsResult(this, requestCode, permissions, grantResults);
     }
 
+    @Override
+    protected void onDestroy() {
+        if (readLastPicTask != null && !readLastPicTask.isCancelled()) {
+            readLastPicTask.cancel(true);
+        }
+        super.onDestroy();
+
+    }
+
     private void initView() {
         Button cameraCaptureButton = findViewById(R.id.camera_capture_button);
         cameraCaptureButton.setOnClickListener(new View.OnClickListener() {
@@ -121,7 +136,7 @@ public class CameraActivity extends AppCompatActivity {
             }
         });
 
-        ImageView photoPreView = findViewById(R.id.photo_preview);
+        photoPreView = findViewById(R.id.photo_preview);
         photoPreView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -135,6 +150,8 @@ public class CameraActivity extends AppCompatActivity {
         });
         viewFinder = findViewById(R.id.viewFinder);
         focusImageView = findViewById(R.id.focus_view);
+        readLastPicTask = new ReadLastPicTask();
+        readLastPicTask.execute(DEFAULT_SAVE_PATH);
 
         //缩放手势监听
         ScaleGestureDetector scaleListener = new ScaleGestureDetector(mContext, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -275,11 +292,17 @@ public class CameraActivity extends AppCompatActivity {
         if (mImageCapture == null)
             return;
 
+        // TODO: 2021/7/18 未适配android 11 android:requestLegacyExternalStorage="true" 已经不管用了
+        // TODO: 2021/7/18 由于android10 的存储策略变更，现在出现android 11无法创建外部文件夹 ,android 10 目前还能稳定运行
+        // TODO: 2021/7/18 参考链接https://www.jianshu.com/p/d0c77b9dc527
         File photoFile = new File(DEFAULT_SAVE_PATH, System.currentTimeMillis() + ".jpg");
         if (photoFile.getParentFile() != null && !photoFile.getParentFile().exists()) {
             boolean b = photoFile.getParentFile().mkdirs();
             if (b) {
-                Log.d(TAG, "takePhoto: 已创建存储目录：" + photoFile.getAbsolutePath());
+                Log.d(TAG, "已创建存储目录：" + photoFile.getParent());
+            } else {
+                Log.e(TAG, "存储目录创建失败：" + photoFile.getParent());
+
             }
         }
         ImageCapture.OutputFileOptions outputOptions = new ImageCapture.OutputFileOptions
@@ -289,8 +312,9 @@ public class CameraActivity extends AppCompatActivity {
         mImageCapture.takePicture(outputOptions, mainExecutor, new ImageCapture.OnImageSavedCallback() {
             @Override
             public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                // TODO: 2021/7/9 android 29 无法访问外置存储目录
                 Log.d(TAG, "onImageSaved: " + photoFile.getAbsolutePath());
+                readLastPicTask = new ReadLastPicTask();
+                readLastPicTask.execute(DEFAULT_SAVE_PATH);
             }
 
             @Override
@@ -380,5 +404,54 @@ public class CameraActivity extends AppCompatActivity {
         mCameraControl = camera.getCameraControl();
     }
 
+    /**
+     * 读取上一张照片缩略图
+     */
+    private class ReadLastPicTask extends AsyncTask<String, Void, String> {
+
+        private int viewWidth, viewHeight;
+
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+        }
+
+        @Override
+        protected String doInBackground(String... strings) {
+            SystemClock.sleep(1000);
+            viewWidth = photoPreView.getWidth();
+            viewHeight = photoPreView.getHeight();
+            if (viewWidth == 0) {
+                //如果1秒后还是没有绘制好大小，就使用默认大小的分辨率
+                viewWidth = viewHeight = 100;
+            }
+            Log.d(TAG, "onPreExecute: " + viewWidth + "=" + viewHeight);
+            File[] album = new File(strings[0]).listFiles();
+            if (album != null && album.length >= 1) {
+                return album[album.length - 1].getAbsolutePath();
+            }
+            return null;
+
+        }
+
+        @Override
+        protected void onProgressUpdate(Void... voids) {
+        }
+
+        @Override
+        protected void onPostExecute(String string) {
+            if (string != null) {
+                Glide.with(mContext)
+                        .load(string)
+                        .override(viewWidth, viewHeight)
+                        .into(photoPreView);
+            }
+        }
+
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+        }
+    }
 
 }
