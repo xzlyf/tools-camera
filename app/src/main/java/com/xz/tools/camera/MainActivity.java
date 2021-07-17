@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.xz.tools.xcamera.bean.AlbumConfig;
 import com.xz.tools.xcamera.ui.AlbumActivity;
+import com.xz.tools.xcamera.ui.CameraActivity;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -18,14 +19,16 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //setContentView(R.layout.activity_main);
+//        setContentView(R.layout.activity_main);
+        startActivity(new Intent(this, CameraActivity.class));
+        finish();
 
-        AlbumConfig config = new AlbumConfig();
-        config.setAlbumPath(Environment.getExternalStorageDirectory() + "/xCamera");
-        config.setStartMode(AlbumConfig.START_SINGLE);
-        startActivityForResult(
-                new Intent(this,
-                        AlbumActivity.class).putExtra(AlbumActivity.EXTRA_CONFIG, config), 1234);
+//        AlbumConfig config = new AlbumConfig();
+//        config.setAlbumPath(Environment.getExternalStorageDirectory() + "/xCamera");
+//        config.setStartMode(AlbumConfig.START_ALBUM);
+//        startActivityForResult(
+//                new Intent(this,
+//                        AlbumActivity.class).putExtra(AlbumActivity.EXTRA_CONFIG, config), 1234);
     }
 
     @Override

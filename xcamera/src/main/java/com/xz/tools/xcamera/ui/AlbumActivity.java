@@ -6,13 +6,11 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -33,9 +31,7 @@ import com.xz.tools.xcamera.R;
 import com.xz.tools.xcamera.bean.AlbumConfig;
 import com.xz.tools.xcamera.bean.Picture;
 import com.xz.tools.xcamera.bean.SelectPic;
-import com.xz.tools.xcamera.ui.dialog.PreviewDialog;
 import com.xz.tools.xcamera.ui.dialog.ProgressDialog;
-import com.xz.tools.xcamera.utils.LongClickUtils;
 import com.xz.tools.xcamera.utils.MediaStoreUtils;
 import com.xz.tools.xcamera.utils.PermissionsUtils;
 import com.xz.tools.xcamera.utils.SpacesItemDecorationUtil;
@@ -222,22 +218,6 @@ public class AlbumActivity extends AppCompatActivity implements MenuItem.OnMenuI
         }
     }
 
-    private PreviewDialog mPreviewDialog;
-
-    private void setPreviewDialog(@NonNull String imgPath) {
-        if (mPreviewDialog == null) {
-            mPreviewDialog = new PreviewDialog(mContext);
-            mPreviewDialog.create();
-        }
-        mPreviewDialog.setPreview(imgPath);
-        mPreviewDialog.show();
-    }
-
-    private void hidePreviewDialog() {
-        if (mPreviewDialog != null && mPreviewDialog.isShowing()) {
-            mPreviewDialog.hide();
-        }
-    }
 
     /**
      * 删除选中的
