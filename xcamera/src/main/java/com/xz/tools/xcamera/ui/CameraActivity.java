@@ -260,6 +260,7 @@ public class CameraActivity extends AppCompatActivity {
     private ProcessCameraProvider cameraProvider;
     private CameraSelector defaultCamera;
     private Executor mainExecutor;
+    private Preview mPreview;
 
     /**
      * 打开相机
@@ -271,9 +272,9 @@ public class CameraActivity extends AppCompatActivity {
             @Override
             public void run() {
                 //用于预览
-                Preview preview = new Preview.Builder()
+                mPreview = new Preview.Builder()
                         .build();
-                preview.setSurfaceProvider(viewFinder.getSurfaceProvider());
+                mPreview.setSurfaceProvider(viewFinder.getSurfaceProvider());
                 //用后置摄像头作为默认摄像头
                 if (camera == 0) {
                     defaultCamera = CameraSelector.DEFAULT_BACK_CAMERA;
@@ -293,7 +294,7 @@ public class CameraActivity extends AppCompatActivity {
                     //将用例绑定到摄像头
                     Camera camera = cameraProvider.bindToLifecycle(CameraActivity.this,
                             defaultCamera,
-                            preview,
+                            mPreview,
                             mImageCapture);
                     setCurrentCameraStates(camera);
                 } catch (ExecutionException | InterruptedException e) {
