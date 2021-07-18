@@ -1,34 +1,59 @@
 package com.xz.tools.camera;
 
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
+import android.view.View;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.xz.tools.scamera.ui.SmartCameraActivity;
 import com.xz.tools.xcamera.bean.AlbumConfig;
 import com.xz.tools.xcamera.ui.AlbumActivity;
 import com.xz.tools.xcamera.ui.CameraActivity;
 
+
 public class MainActivity extends AppCompatActivity {
 
     public static final String TAG = MainActivity.class.getName();
+    private Context mContext;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-//        setContentView(R.layout.activity_main);
-        startActivity(new Intent(this, CameraActivity.class));
-        finish();
+        mContext = this;
+        setContentView(R.layout.activity_main);
 
-//        AlbumConfig config = new AlbumConfig();
-//        config.setAlbumPath(Environment.getExternalStorageDirectory() + "/xCamera");
-//        config.setStartMode(AlbumConfig.START_ALBUM);
-//        startActivityForResult(
-//                new Intent(this,
-//                        AlbumActivity.class).putExtra(AlbumActivity.EXTRA_CONFIG, config), 1234);
+        findViewById(R.id.btn1).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(mContext, CameraActivity.class));
+            }
+        });
+
+        findViewById(R.id.btn2).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                AlbumConfig config = new AlbumConfig();
+                config.setAlbumPath(Environment.getExternalStorageDirectory() + "/xCamera");
+                config.setStartMode(AlbumConfig.START_ALBUM);
+                startActivityForResult(
+                        new Intent(mContext,
+                                AlbumActivity.class).putExtra(AlbumActivity.EXTRA_CONFIG, config), 1234);
+            }
+        });
+        findViewById(R.id.btn3).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(mContext, SmartCameraActivity.class));
+            }
+        });
+
+
+
     }
 
     @Override
