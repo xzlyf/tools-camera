@@ -19,23 +19,39 @@
         app:focus_focusing_id="@drawable/focus_focusing"
         app:focus_success_id="@drawable/focus_focused" />
 
+    <!--顶部操作区-->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:background="@color/xCameraDefault"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="15dp">
 
+        <Button
+            android:id="@+id/camera_switch_button"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="@drawable/select_switch_camera"
+            android:elevation="0dp" />
+
+        <Button
+            android:id="@+id/camera_switch_flash"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginStart="30dp"
+            android:background="@drawable/level_flash"
+            android:elevation="0dp" />
+    </LinearLayout>
+
+    <!--底部操作区-->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="180dp"
         android:layout_gravity="bottom"
-        android:background="#26000000">
+        android:background="@color/xCameraDefault">
 
-        <Button
-            android:id="@+id/camera_switch_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@drawable/select_switch_camera"
-            android:elevation="0dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintRight_toLeftOf="@id/camera_capture_button"
-            app:layout_constraintTop_toTopOf="parent" />
 
         <Button
             android:id="@+id/camera_capture_button"
@@ -44,7 +60,6 @@
             android:background="@drawable/select_take_photo"
             android:elevation="0dp"
             android:scaleType="fitCenter"
-            android:text="Take"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintLeft_toLeftOf="parent"
             app:layout_constraintRight_toRightOf="parent"

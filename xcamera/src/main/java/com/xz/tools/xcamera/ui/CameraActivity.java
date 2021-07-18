@@ -66,8 +66,13 @@ public class CameraActivity extends AppCompatActivity {
     private ImageView photoPreView;
     //当前摄像头
     private int cameraCurrent = 0;
+    //当前闪光灯模式,默认关闭
+    private int flashMode = ImageCapture.FLASH_MODE_OFF;
     //子线程任务
     private ReadLastPicTask readLastPicTask;
+
+    //屏幕方向监听
+    private OrientationEventListener orientationEventListener;
 
 
     private PreviewView viewFinder;
@@ -111,6 +116,7 @@ public class CameraActivity extends AppCompatActivity {
         if (readLastPicTask != null && !readLastPicTask.isCancelled()) {
             readLastPicTask.cancel(true);
         }
+        orientationEventListener.disable();
         super.onDestroy();
 
     }
@@ -146,6 +152,26 @@ public class CameraActivity extends AppCompatActivity {
                 startActivityForResult(
                         new Intent(CameraActivity.this,
                                 AlbumActivity.class).putExtra(AlbumActivity.EXTRA_CONFIG, config), 1234);
+            }
+        });
+        Button switchFlashMode = findViewById(R.id.camera_switch_flash);
+        switchFlashMode.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mImageCapture == null) {
+                    return;
+                }
+                if (flashMode == ImageCapture.FLASH_MODE_OFF) {
+                    flashMode = ImageCapture.FLASH_MODE_ON;
+                    switchFlashMode.getBackground().setLevel(1);
+                } else if (flashMode == ImageCapture.FLASH_MODE_ON) {
+                    flashMode = ImageCapture.FLASH_MODE_AUTO;
+                    switchFlashMode.getBackground().setLevel(2);
+                } else if (flashMode == ImageCapture.FLASH_MODE_AUTO) {
+                    flashMode = ImageCapture.FLASH_MODE_OFF;
+                    switchFlashMode.getBackground().setLevel(0);
+                }
+                mImageCapture.setFlashMode(flashMode);
             }
         });
         viewFinder = findViewById(R.id.viewFinder);
@@ -206,7 +232,7 @@ public class CameraActivity extends AppCompatActivity {
 
 
         //监听手机旋转角度，让相机的旋转角度会设置为与默认的显示屏旋转角度保持一致，这样排的照片和画面一致，不会反转
-        OrientationEventListener orientationEventListener = new OrientationEventListener(mContext) {
+        orientationEventListener = new OrientationEventListener(mContext) {
             @Override
             public void onOrientationChanged(int orientation) {
                 int rotation;
@@ -228,7 +254,6 @@ public class CameraActivity extends AppCompatActivity {
         };
         orientationEventListener.enable();
 
-
     }
 
     private ListenableFuture<ProcessCameraProvider> future;
@@ -245,13 +270,6 @@ public class CameraActivity extends AppCompatActivity {
         future.addListener(new Runnable() {
             @Override
             public void run() {
-                //Preview preview = new Preview.Builder()
-                //		//设置宽高比
-                //		.setTargetAspectRatio(screenAspectRatio)
-                //		//设置当前屏幕的旋转
-                //		.setTargetRotation(rotation)
-                //		.build();
-
                 //用于预览
                 Preview preview = new Preview.Builder()
                         .build();
@@ -264,7 +282,9 @@ public class CameraActivity extends AppCompatActivity {
                 }
                 //ImageCapture 用于拍照，非必须声明，可以忽略
                 mImageCapture = new ImageCapture.Builder()
+                        .setFlashMode(flashMode)
                         .build();
+
                 try {
                     cameraProvider = future.get();
 
@@ -305,10 +325,11 @@ public class CameraActivity extends AppCompatActivity {
 
             }
         }
+
+        //这么可以设置图片的位置，镜像反转
         ImageCapture.OutputFileOptions outputOptions = new ImageCapture.OutputFileOptions
                 .Builder(photoFile)
                 .build();
-
         mImageCapture.takePicture(outputOptions, mainExecutor, new ImageCapture.OnImageSavedCallback() {
             @Override
             public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
@@ -425,7 +446,6 @@ public class CameraActivity extends AppCompatActivity {
                 //如果1秒后还是没有绘制好大小，就使用默认大小的分辨率
                 viewWidth = viewHeight = 100;
             }
-            Log.d(TAG, "onPreExecute: " + viewWidth + "=" + viewHeight);
             File[] album = new File(strings[0]).listFiles();
             if (album != null && album.length >= 1) {
                 return album[album.length - 1].getAbsolutePath();
