@@ -5,13 +5,21 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CaptureFailure;
+import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
+import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
+import android.view.Surface;
 import android.view.TextureView;
 import android.widget.Toast;
 
@@ -23,6 +31,7 @@ import com.xz.tools.scamera.R;
 import com.xz.tools.scamera.utils.FitSizeTool;
 import com.xz.tools.scamera.utils.PermissionsUtils;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,6 +49,10 @@ public class SmartCameraActivity extends AppCompatActivity {
     private CameraManager mCameraManager;
     private CameraDevice mCameraDevice;//当前连接的摄像头
     //-------camera 2实例-------
+
+
+    private Handler mBackgroundHandler;
+    private HandlerThread mBackgroundThread;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,17 +81,37 @@ public class SmartCameraActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onStop() {
+    protected void onResume() {
+        super.onResume();
+        startBackgroundThread();
+
+        if (cameraPreview.isAvailable()) {
+            openCamera(cameraIdList[0]);
+        } else {
+            cameraPreview.setSurfaceTextureListener(textureListener);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+
+        if (mCaptureSession != null) {
+            try {
+                mCaptureSession.stopRepeating();
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+        }
         if (mCameraDevice != null) {
             mCameraDevice.close();
             mCameraDevice = null;
         }
-        super.onStop();
+        stopBackgroundThread();
+        super.onPause();
     }
 
     private void initView() {
         cameraPreview = findViewById(R.id.camera_preview);
-        cameraPreview.setSurfaceTextureListener(textureListener);
     }
 
 
@@ -132,7 +165,6 @@ public class SmartCameraActivity extends AppCompatActivity {
         }
 
 
-        openCamera(cameraIdList[0]);
     }
 
     /**
@@ -159,9 +191,12 @@ public class SmartCameraActivity extends AppCompatActivity {
     private CameraDevice.StateCallback cameraStateCallback = new CameraDevice.StateCallback() {
         @Override
         public void onOpened(@NonNull CameraDevice camera) {
+            Log.w(TAG, "相机已打开: cameraId=" + camera.getId());
             mCameraDevice = camera;
             currentCameraId = camera.getId();
-            Log.w(TAG, "相机已打开: cameraId=" + camera.getId());
+            //开启预览
+            startPreview();
+
         }
 
         @Override
@@ -201,6 +236,7 @@ public class SmartCameraActivity extends AppCompatActivity {
          */
         @Override
         public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
+            Log.i(TAG, "onSurfaceTextureAvailable: ");
             CameraCharacteristics cameraCharacteristics = cameraCharacterMap.get(currentCameraId);
             Size fitPreviewSize = null;
             if (cameraCharacteristics != null) {
@@ -211,9 +247,9 @@ public class SmartCameraActivity extends AppCompatActivity {
 
             }
             surface.setDefaultBufferSize(fitPreviewSize.getWidth(), fitPreviewSize.getHeight());
-            cameraPreview.setSurfaceTexture(surface);
-            // TODO: 2021/7/19  Trying to setSurfaceTexture to the same SurfaceTexture that's already set.
+            mPreviewSurface = new Surface(surface);
 
+            openCamera(cameraIdList[0]);
 
         }
 
@@ -232,4 +268,104 @@ public class SmartCameraActivity extends AppCompatActivity {
 
         }
     };
+
+    private Surface mPreviewSurface;
+    private CameraCaptureSession mCaptureSession;
+    private CaptureRequest captureRequest;
+    private CaptureRequest.Builder captureRequestBuild;
+
+    /**
+     * 开始预览
+     */
+    private void startPreview() {
+
+
+        try {
+            mCameraDevice.createCaptureSession(Collections.singletonList(mPreviewSurface), captureSessionStateCallback, null);
+            captureRequestBuild = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            captureRequestBuild.addTarget(mPreviewSurface);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+
+    }
+
+    private CameraCaptureSession.StateCallback captureSessionStateCallback = new CameraCaptureSession.StateCallback() {
+        @Override
+        public void onConfigured(@NonNull CameraCaptureSession session) {
+            mCaptureSession = session;
+            try {
+                captureRequest = captureRequestBuild.build();
+                mCaptureSession.setRepeatingRequest(captureRequest, captureSessionCallback, mBackgroundHandler);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+
+        }
+
+        @Override
+        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+            try {
+                session.stopRepeating();
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+            mCaptureSession = null;
+        }
+    };
+
+    private CameraCaptureSession.CaptureCallback captureSessionCallback = new CameraCaptureSession.CaptureCallback() {
+        @Override
+        public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, long timestamp, long frameNumber) {
+            super.onCaptureStarted(session, request, timestamp, frameNumber);
+        }
+
+        @Override
+        public void onCaptureProgressed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureResult partialResult) {
+            super.onCaptureProgressed(session, request, partialResult);
+        }
+
+        @Override
+        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+            super.onCaptureCompleted(session, request, result);
+        }
+
+        @Override
+        public void onCaptureFailed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureFailure failure) {
+            super.onCaptureFailed(session, request, failure);
+        }
+
+        @Override
+        public void onCaptureSequenceCompleted(@NonNull CameraCaptureSession session, int sequenceId, long frameNumber) {
+            super.onCaptureSequenceCompleted(session, sequenceId, frameNumber);
+        }
+
+        @Override
+        public void onCaptureSequenceAborted(@NonNull CameraCaptureSession session, int sequenceId) {
+            super.onCaptureSequenceAborted(session, sequenceId);
+        }
+
+        @Override
+        public void onCaptureBufferLost(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull Surface target, long frameNumber) {
+            super.onCaptureBufferLost(session, request, target, frameNumber);
+        }
+    };
+
+    private void startBackgroundThread() {
+        mBackgroundThread = new HandlerThread("CameraBackground");
+        mBackgroundThread.start();
+        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+    }
+
+    private void stopBackgroundThread() {
+        mBackgroundThread.quitSafely();
+        try {
+            mBackgroundThread.join();
+            mBackgroundThread = null;
+            mBackgroundHandler = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 }
