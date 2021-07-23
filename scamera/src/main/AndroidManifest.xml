@@ -15,7 +15,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <application>
-        <activity android:name=".ui.SmartCameraActivity" />
+        <activity android:name=".ui.SmartCameraActivity" android:theme="@style/FullScreen" />
     </application>
 
 </manifest>

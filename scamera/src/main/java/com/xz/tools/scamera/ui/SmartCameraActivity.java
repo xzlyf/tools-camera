@@ -3,6 +3,9 @@ package com.xz.tools.scamera.ui;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.graphics.Matrix;
+import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -30,6 +33,7 @@ import androidx.core.app.ActivityCompat;
 import com.xz.tools.scamera.R;
 import com.xz.tools.scamera.utils.FitSizeTool;
 import com.xz.tools.scamera.utils.PermissionsUtils;
+import com.xz.tools.scamera.view.AutoFitTextureView;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,7 +42,7 @@ import java.util.Map;
 public class SmartCameraActivity extends AppCompatActivity {
     public static final String TAG = SmartCameraActivity.class.getName();
     private Context mContext;
-    private TextureView cameraPreview;
+    private AutoFitTextureView cameraPreview;
 
 
     //-------camera 2实例-------
@@ -48,6 +52,7 @@ public class SmartCameraActivity extends AppCompatActivity {
     private Map<String, CameraCharacteristics> cameraCharacterMap = new HashMap<>();//CameraCharacteristics 是一个只读的相机信息提供者，其内部携带大量的相机信息
     private CameraManager mCameraManager;
     private CameraDevice mCameraDevice;//当前连接的摄像头
+    private  Size fitPreviewSize;
     //-------camera 2实例-------
 
 
@@ -236,9 +241,8 @@ public class SmartCameraActivity extends AppCompatActivity {
          */
         @Override
         public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
-            Log.i(TAG, "onSurfaceTextureAvailable: ");
             CameraCharacteristics cameraCharacteristics = cameraCharacterMap.get(currentCameraId);
-            Size fitPreviewSize = null;
+            fitPreviewSize = null;
             if (cameraCharacteristics != null) {
                 fitPreviewSize = FitSizeTool.getFitPreviewSize(cameraCharacteristics, SurfaceTexture.class, width, height);
             }
@@ -248,14 +252,37 @@ public class SmartCameraActivity extends AppCompatActivity {
             }
             surface.setDefaultBufferSize(fitPreviewSize.getWidth(), fitPreviewSize.getHeight());
             mPreviewSurface = new Surface(surface);
-
             openCamera(cameraIdList[0]);
+
+            int orientation = getResources().getConfiguration().orientation;
+            if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                cameraPreview.setAspectRatio(width, height);
+            } else {
+                cameraPreview.setAspectRatio(width, height);
+            }
 
         }
 
         @Override
         public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surface, int width, int height) {
-
+            int rotation = getWindowManager().getDefaultDisplay().getRotation();
+            Matrix matrix = new Matrix();
+            RectF viewRect = new RectF(0, 0, width, height);
+            RectF bufferRect = new RectF(0, 0, fitPreviewSize.getHeight(), fitPreviewSize.getWidth());
+            float centerX = viewRect.centerX();
+            float centerY = viewRect.centerY();
+            if (Surface.ROTATION_90 == rotation || Surface.ROTATION_270 == rotation) {
+                bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY());
+                matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL);
+                float scale = Math.max(
+                        (float) height / fitPreviewSize.getHeight(),
+                        (float) width / fitPreviewSize.getWidth());
+                matrix.postScale(scale, scale, centerX, centerY);
+                matrix.postRotate(90 * (rotation - 2), centerX, centerY);
+            } else if (Surface.ROTATION_180 == rotation) {
+                matrix.postRotate(180, centerX, centerY);
+            }
+            cameraPreview.setTransform(matrix);
         }
 
         @Override

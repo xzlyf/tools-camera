@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="mainColor">#4CAF50</color>
+    <color name="mainColorDark">#388E3C</color>
+    <color name="mainColorLight">#C8E6C9</color>
+    <color name="mainAccent">#FFC107</color>
+    <color name="xCameraTransparency">#00FFFFFF</color>
+    <color name="xCameraBlack">#000000</color>
+    <color name="xCameraWhite">#FFFFFF</color>
+    <color name="xCameraWhite_2">#D6D6D6</color>
+    <color name="xCameraDefault">#26000000</color>
+</resources>
