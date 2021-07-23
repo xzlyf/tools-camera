@@ -17,6 +17,7 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -24,6 +25,8 @@ import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.TextureView;
+import android.view.View;
+import android.view.WindowManager;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -52,7 +55,7 @@ public class SmartCameraActivity extends AppCompatActivity {
     private Map<String, CameraCharacteristics> cameraCharacterMap = new HashMap<>();//CameraCharacteristics 是一个只读的相机信息提供者，其内部携带大量的相机信息
     private CameraManager mCameraManager;
     private CameraDevice mCameraDevice;//当前连接的摄像头
-    private  Size fitPreviewSize;
+    private Size fitPreviewSize;
     //-------camera 2实例-------
 
 
@@ -64,7 +67,7 @@ public class SmartCameraActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         mContext = this;
         setContentView(R.layout.activity_camera_smart);
-
+        initView();
         String[] permissions = {Manifest.permission.READ_EXTERNAL_STORAGE,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 Manifest.permission.CAMERA};
@@ -82,7 +85,6 @@ public class SmartCameraActivity extends AppCompatActivity {
 
                     }
                 });
-        initView();
     }
 
     @Override
@@ -116,9 +118,28 @@ public class SmartCameraActivity extends AppCompatActivity {
     }
 
     private void initView() {
+        hideBottomUIMenu();
         cameraPreview = findViewById(R.id.camera_preview);
     }
 
+    /**
+     * 隐藏虚拟按键，并且全屏
+     */
+    protected void hideBottomUIMenu() {
+        //隐藏虚拟按键，并且全屏
+        if (Build.VERSION.SDK_INT >= 19) {
+            //for new api versions.
+            View decorView = getWindow().getDecorView();
+            int uiOptions = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION // hide nav bar
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN // hide status bar
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE;
+            decorView.setSystemUiVisibility(uiOptions);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+        }
+    }
 
     private void initCamera() {
         //CameraManager 是一个负责查询和建立相机连接的系统服务
